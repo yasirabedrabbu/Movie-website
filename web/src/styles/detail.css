@@ -84,3 +84,18 @@
     align-items: start;
   }
 }
+.skeleton {
+  background: var(--surface-2);
+  animation: skeleton-pulse 1.2s ease-in-out infinite alternate;
+}
+
+.skeleton-title {
+  width: min(320px, 70%);
+  height: 40px;
+  border-radius: 8px;
+}
+
+@keyframes skeleton-pulse {
+  from { opacity: 0.5; }
+  to { opacity: 1; }
+}

@@ -19,6 +19,7 @@
   object-fit: cover;
   object-position: center top;
   z-index: -2;
+  animation: carousel-fade var(--dur-slow) ease both;
 }
 
 .carousel::after {
@@ -26,16 +27,21 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(
-    90deg,
-    rgba(11, 11, 16, 0.95) 0%,
-    rgba(11, 11, 16, 0.6) 45%,
-    rgba(11, 11, 16, 0.2) 100%
-  );
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--bg) 95%, transparent) 0%,
+      color-mix(in srgb, var(--bg) 60%, transparent) 45%,
+      color-mix(in srgb, var(--bg) 20%, transparent) 100%
+    ),
+    linear-gradient(0deg, var(--bg) 0%, transparent 30%);
 }
 
 .carousel-content {
   padding-bottom: 72px;
+}
+
+.carousel-copy {
   max-width: 640px;
 }
 
@@ -56,23 +62,39 @@
   overflow: hidden;
 }
 
-.carousel-nav {
+.carousel-nav,
+.carousel-pause {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
+  z-index: 2;
+  display: grid;
+  place-items: center;
   width: 44px;
   height: 44px;
   border-radius: 50%;
   border: none;
-  background: rgba(22, 22, 31, 0.7);
+  background: color-mix(in srgb, var(--surface) 75%, transparent);
   color: var(--text);
-  font-size: 1.5rem;
   cursor: pointer;
-  z-index: 2;
+  transition: background var(--dur-fast);
+}
+
+.carousel-nav:hover,
+.carousel-pause:hover {
+  background: var(--surface-3);
+}
+
+.carousel-nav {
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .carousel-nav.prev { left: 16px; }
 .carousel-nav.next { right: 16px; }
+
+.carousel-pause {
+  bottom: 16px;
+  right: 16px;
+}
 
 .carousel-dots {
   position: absolute;
@@ -80,19 +102,54 @@
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 8px;
   z-index: 2;
 }
 
+/* 24px hit area around a 10px dot (WCAG 2.2 target size) */
 .dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
   border: none;
-  background: var(--surface-3);
+  background: transparent;
   cursor: pointer;
 }
 
-.dot[aria-selected="true"] {
+.dot::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  opacity: 0.6;
+  transition: width var(--dur-fast), opacity var(--dur-fast), background var(--dur-fast);
+}
+
+.dot[aria-current="true"]::before {
+  width: 24px;
+  border-radius: 999px;
   background: var(--accent);
+  opacity: 1;
+}
+
+@keyframes carousel-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 640px) {
+  .carousel-nav {
+    top: auto;
+    bottom: 8px;
+    transform: none;
+  }
+  .carousel-nav.prev { left: 8px; }
+  .carousel-nav.next { right: 8px; }
+  .carousel-pause {
+    top: 12px;
+    bottom: auto;
+    right: 12px;
+  }
 }

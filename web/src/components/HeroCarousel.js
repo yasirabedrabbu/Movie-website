@@ -1,64 +1,159 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import TrailerModal from "@/components/TrailerModal";
+import Icon from "@/components/Icon";
+import {
+  PlayIcon,
+  PauseIcon,
+  PlayCircleIcon,
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+} from "@hugeicons/core-free-icons";
+
+const INTERVAL_MS = 6000;
+const QUERY = "(prefers-reduced-motion: reduce)";
+
+function useReducedMotion() {
+  return useSyncExternalStore(
+    (onChange) => {
+      const mq = window.matchMedia(QUERY);
+      mq.addEventListener("change", onChange);
+      return () => mq.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia(QUERY).matches,
+    () => false
+  );
+}
 
 export default function HeroCarousel({ slides }) {
   const [index, setIndex] = useState(0);
   const [showTrailer, setShowTrailer] = useState(false);
+  const [userPaused, setUserPaused] = useState(false);
+  const [hover, setHover] = useState(false);
+  const [focus, setFocus] = useState(false);
+  const reducedMotion = useReducedMotion();
+
   const count = slides.length;
+  const playing =
+    count > 1 && !userPaused && !hover && !focus && !showTrailer && !reducedMotion;
 
   const next = useCallback(() => setIndex((i) => (i + 1) % count), [count]);
   const prev = () => setIndex((i) => (i - 1 + count) % count);
 
+  // Restarts after every slide change, so manual navigation resets the timer.
   useEffect(() => {
-    if (count < 2 || showTrailer) return;
-    const t = setInterval(next, 6000);
-    return () => clearInterval(t);
-  }, [count, next, showTrailer]);
+    if (!playing) return;
+    const t = setTimeout(next, INTERVAL_MS);
+    return () => clearTimeout(t);
+  }, [playing, index, next]);
 
   if (!count) return null;
   const slide = slides[index];
 
   return (
-    <section className="carousel" aria-roledescription="carousel" aria-label="Featured movies">
+    <section
+      className="carousel"
+      aria-roledescription="carousel"
+      aria-label="Featured movies"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onFocus={() => setFocus(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) setFocus(false);
+      }}
+    >
       {slide.backdrop && (
-        <img className="carousel-bg" src={slide.backdrop} alt="" />
+        <img
+          key={slide.id}
+          className="carousel-bg"
+          src={slide.backdrop}
+          alt=""
+          fetchPriority={index === 0 ? "high" : "auto"}
+        />
       )}
+
       <div className="container carousel-content">
-        <p className="card-meta">{slide.year} · {slide.quality || "HD"}</p>
-        <h1>{slide.title}</h1>
-        <p className="carousel-overview">{slide.overview}</p>
-        <div className="hero-actions">
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => setShowTrailer(true)}
-            disabled={!slide.trailerKey}
-          >
-            ▶ Trailer
-          </button>
-          <a className="btn btn-ghost" href={slide.href}>
-            Details
-          </a>
+        <div
+          className="carousel-copy"
+          role="group"
+          aria-roledescription="slide"
+          aria-label={`${index + 1} of ${count}`}
+          aria-live={playing ? "off" : "polite"}
+        >
+          <p className="card-meta">
+            {slide.year} · {slide.quality || "HD"}
+          </p>
+          <h1>{slide.title}</h1>
+          {slide.overview && (
+            <p className="carousel-overview">{slide.overview}</p>
+          )}
+          <div className="hero-actions">
+            {slide.trailerKey && (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setShowTrailer(true)}
+              >
+                <Icon icon={PlayIcon} size={20} />
+                Trailer
+              </button>
+            )}
+            <a
+              className={`btn ${slide.trailerKey ? "btn-ghost" : "btn-primary"}`}
+              href={slide.href}
+            >
+              <Icon icon={PlayCircleIcon} size={20} />
+              Details
+            </a>
+          </div>
         </div>
       </div>
 
-      <button type="button" className="carousel-nav prev" onClick={prev} aria-label="Previous slide">‹</button>
-      <button type="button" className="carousel-nav next" onClick={next} aria-label="Next slide">›</button>
-
-      <div className="carousel-dots" role="tablist">
-        {slides.map((s, i) => (
+      {count > 1 && (
+        <>
           <button
-            key={s.id}
             type="button"
-            className="dot"
-            aria-label={`Slide ${i + 1}`}
-            aria-selected={i === index}
-            onClick={() => setIndex(i)}
-          />
-        ))}
-      </div>
+            className="carousel-nav prev"
+            onClick={prev}
+            aria-label="Previous slide"
+          >
+            <Icon icon={ArrowLeft01Icon} size={24} />
+          </button>
+          <button
+            type="button"
+            className="carousel-nav next"
+            onClick={next}
+            aria-label="Next slide"
+          >
+            <Icon icon={ArrowRight01Icon} size={24} />
+          </button>
+
+          <button
+            type="button"
+            className="carousel-pause"
+            onClick={() => setUserPaused((p) => !p)}
+            aria-label={
+              userPaused ? "Start automatic slide show" : "Pause automatic slide show"
+            }
+          >
+            <Icon icon={userPaused ? PlayIcon : PauseIcon} size={20} />
+          </button>
+
+          <div className="carousel-dots" role="group" aria-label="Choose slide">
+            {slides.map((s, i) => (
+              <button
+                key={s.id}
+                type="button"
+                className="dot"
+                aria-label={`Slide ${i + 1} of ${count}`}
+                aria-current={i === index}
+                onClick={() => setIndex(i)}
+              />
+            ))}
+          </div>
+        </>
+      )}
 
       {showTrailer && (
         <TrailerModal
