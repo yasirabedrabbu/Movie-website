@@ -1,0 +1,14 @@
+.search {
+  min-height: 44px;
+  width: min(360px, 100%);
+  padding: 10px 16px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--surface-2);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.search::placeholder {
+  color: var(--text-muted);
+}

@@ -1,0 +1,31 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 20px;
+  border-radius: var(--radius-pill);
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur-fast), transform var(--dur-fast);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.btn-ghost {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.btn-ghost:hover {
+  background: var(--surface-3);
+}

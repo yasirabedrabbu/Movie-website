@@ -1,0 +1,26 @@
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(11, 11, 16, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--surface-2);
+}
+
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 64px;
+}
+
+.logo {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.logo span {
+  color: var(--accent);
+}
