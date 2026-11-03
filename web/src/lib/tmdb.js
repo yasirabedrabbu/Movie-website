@@ -1,22 +1,27 @@
+import { cacheLife } from "next/cache";
+
 const BASE = "https://api.themoviedb.org/3";
 const IMG = "https://image.tmdb.org/t/p";
-const TOKEN = process.env.NEXT_PUBLIC_TMDB_TOKEN;
-
-const cache = new Map();
 
 async function tmdb(path) {
-  if (cache.has(path)) return cache.get(path);
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { Authorization: `Bearer ${TOKEN}`, accept: "application/json" },
+  "use cache";
+  cacheLife("days");
+
+  const res = await fetch(`https://api.themoviedb.org/3${path}`, {
+    headers: {
+      Authorization: `Bearer ${process.env.NEXT_PUBLIC_TMDB_TOKEN}`,
+      accept: "application/json",
+    },
   });
   if (!res.ok) return null;
-  const data = await res.json();
-  cache.set(path, data);
-  return data;
+  return res.json();
 }
 
 // Movie title + year diye TMDB te khuje backdrop ar trailer anbe
 export async function getMovieMedia(title, year) {
+  "use cache";
+  cacheLife("days");
+
   const q = encodeURIComponent(title);
   const y = year ? `&year=${year}` : "";
   const search = await tmdb(`/search/movie?query=${q}${y}`);
