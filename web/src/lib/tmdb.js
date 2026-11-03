@@ -1,51 +1,114 @@
 import { cacheLife } from "next/cache";
+import { config, hasTmdb, tmdbImage } from "./config";
 
-const BASE = "https://api.themoviedb.org/3";
-const IMG = "https://image.tmdb.org/t/p";
+// ---------------------------------------------------------------------------
+// Low level
+// ---------------------------------------------------------------------------
 
-async function tmdb(path) {
+// Cached raw request.
+//
+// BUG FIX: the old code returned `null` on every failure inside a "use cache"
+// function, so one rate-limit / network blip / missing token was cached for
+// days. Now only real answers are cached:
+//   - 200 -> JSON is cached
+//   - 404 -> null is cached (the thing genuinely does not exist)
+//   - anything else THROWS. Thrown errors are not cached.
+async function tmdbRaw(pathWithQuery) {
   "use cache";
   cacheLife("days");
 
-  const token = process.env.TMDB_TOKEN;
-  if (!token) return null;
+  const res = await fetch(`${config.tmdb.apiBase}${pathWithQuery}`, {
+    headers: {
+      Authorization: `Bearer ${config.tmdb.token}`,
+      accept: "application/json",
+    },
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`TMDB ${res.status} ${pathWithQuery}`);
+  return res.json();
+}
 
+// Not cached itself: it swallows errors so pages still render without TMDB,
+// while tmdbRaw above stays free of cached failures.
+async function tmdb(path, params = {}) {
+  if (!hasTmdb) return null;
+  const qs = new URLSearchParams({ language: config.tmdb.language, ...params });
   try {
-    const res = await fetch(`${BASE}${path}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        accept: "application/json",
-      },
-    });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
+    return await tmdbRaw(`${path}?${qs}`);
+  } catch (err) {
+    console.warn(`[tmdb] ${err.message}`);
     return null;
   }
 }
 
-// Search TMDB by title and year to get the backdrop and trailer
-export async function getMovieMedia(title, year) {
-  "use cache";
-  cacheLife("days");
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-  const q = encodeURIComponent(title);
-  const y = year ? `&year=${year}` : "";
-  const search = await tmdb(`/search/movie?query=${q}${y}`);
-  const hit = search?.results?.[0];
-  if (!hit) return null;
+function releaseYear(result) {
+  const y = Number(result?.release_date?.slice(0, 4));
+  return Number.isFinite(y) && y > 0 ? y : null;
+}
 
-  const videos = await tmdb(`/movie/${hit.id}/videos`);
-  const trailer = videos?.results?.find(
-    (v) => v.site === "YouTube" && v.type === "Trailer"
+// Accept a hit only if its year is within 1 of ours. Folder years and TMDB
+// release years often differ by one, but a 5-year gap is a different movie.
+function pickMatch(results = [], year) {
+  return results.find((r) => {
+    if (!year) return true;
+    const y = releaseYear(r);
+    return y !== null && Math.abs(y - year) <= 1;
+  });
+}
+
+function pickTrailer(videos = []) {
+  const yt = videos.filter((v) => v.site === "YouTube");
+  return (
+    yt.find((v) => v.type === "Trailer" && v.official) ||
+    yt.find((v) => v.type === "Trailer") ||
+    yt.find((v) => v.type === "Teaser") ||
+    null
   );
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+// Title + year -> TMDB id. Prefer storing `tmdbId` in movies.json (scanner
+// --tmdb) and passing it to getMovieMedia, so this search is only a fallback.
+export async function findTmdbId(title, year) {
+  const query = { query: title };
+  const withYear = year ? await tmdb("/search/movie", { ...query, year }) : null;
+  const hit =
+    pickMatch(withYear?.results, year) ||
+    pickMatch((await tmdb("/search/movie", query))?.results, year);
+  return hit?.id ?? null;
+}
+
+// Everything the hero carousel / movie header needs, in one call.
+// Backward compatible: getMovieMedia(title, year) still works.
+export async function getMovieMedia(title, year, tmdbId = null) {
+  const id = tmdbId ?? (await findTmdbId(title, year));
+  if (!id) return null;
+
+  const m = await tmdb(`/movie/${id}`, {
+    append_to_response: "videos",
+    include_video_language: "en,null",
+  });
+  if (!m) return null;
 
   return {
-    title: hit.title,
-    overview: hit.overview,
-    rating: hit.vote_average,
-    backdrop: hit.backdrop_path ? `${IMG}/w1280${hit.backdrop_path}` : null,
-    poster: hit.poster_path ? `${IMG}/w500${hit.poster_path}` : null,
-    trailerKey: trailer?.key || null,
+    tmdbId: m.id,
+    title: m.title,
+    tagline: m.tagline || "",
+    overview: m.overview || "",
+    rating: m.vote_average || null,
+    voteCount: m.vote_count || 0,
+    runtime: m.runtime || null,
+    genres: (m.genres || []).map((g) => g.name),
+    releaseDate: m.release_date || null,
+    backdrop: tmdbImage(m.backdrop_path, "w1280"),
+    poster: tmdbImage(m.poster_path, "w500"),
+    trailerKey: pickTrailer(m.videos?.results)?.key || null,
   };
 }
