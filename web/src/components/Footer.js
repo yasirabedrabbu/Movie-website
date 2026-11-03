@@ -1,7 +1,7 @@
 export default function Footer() {
   return (
     <footer className="footer">
-      <p>© {new Date().getFullYear()} DhakaFlix. All rights reserved.</p>
+      <p>© 2026 DhakaFlix. All rights reserved.</p>
     </footer>
   );
 }

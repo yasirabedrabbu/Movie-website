@@ -18,3 +18,9 @@
     scroll-behavior: auto !important;
   }
 }
+@media (prefers-reduced-motion: reduce) {
+  [style*="opacity"] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

@@ -1,52 +1,40 @@
-"use client";
-
-import { useMemo, useState } from "react";
 import Header from "@/components/Header";
-import Hero from "@/components/Hero";
-import CategoryChips from "@/components/CategoryChips";
-import SearchBox from "@/components/SearchBox";
-import MovieGrid from "@/components/MovieGrid";
 import Footer from "@/components/Footer";
-import FadeIn from "@/components/motion/FadeIn";
-import useGsapReveal from "@/components/motion/useGsapReveal";
-import { allMovies, filterMovies, getCategories } from "@/lib/movies";
-import { PAGE_SIZE } from "@/lib/constants";
+import HeroCarousel from "@/components/HeroCarousel";
+import BrowseSection from "@/components/BrowseSection";
+import { allMovies } from "@/lib/movies";
+import { getMovieMedia } from "@/lib/tmdb";
 
-export default function Home() {
-  const [category, setCategory] = useState("All");
-  const [query, setQuery] = useState("");
+const SLIDE_COUNT = 6;
 
-  const categories = useMemo(() => getCategories(), []);
-  const results = useMemo(
-    () => filterMovies({ category, query }),
-    [category, query]
+async function buildSlides() {
+  const picks = allMovies.slice(0, SLIDE_COUNT);
+  return Promise.all(
+    picks.map(async (m) => {
+      const media = await getMovieMedia(m.title, m.year);
+      return {
+        id: m.id,
+        title: media?.title || m.title,
+        year: m.year,
+        quality: m.quality,
+        overview: media?.overview || "",
+        backdrop: media?.backdrop || m.poster,
+        trailerKey: media?.trailerKey || null,
+        href: `/movie/${m.id}`,
+      };
+    })
   );
-  const shown = results.slice(0, PAGE_SIZE);
+}
 
-  const gridRef = useGsapReveal(".card", `${category}|${query}`);
+export default async function Home() {
+  const slides = await buildSlides();
 
   return (
     <>
       <Header />
       <main>
-        <FadeIn>
-          <Hero movie={allMovies[0]} />
-        </FadeIn>
-
-        <section className="container" aria-label="Browse movies">
-          <SearchBox value={query} onChange={setQuery} />
-          <CategoryChips
-            categories={categories}
-            active={category}
-            onChange={setCategory}
-          />
-          <p className="card-meta">
-            {results.length} ta movie pawa gechhe
-          </p>
-          <div ref={gridRef}>
-            <MovieGrid movies={shown} />
-          </div>
-        </section>
+        <HeroCarousel slides={slides} />
+        <BrowseSection />
       </main>
       <Footer />
     </>
