@@ -28,7 +28,7 @@ export default function MoviePage({ params }) {
 
 async function MovieContent({ params }) {
   const { id } = await params;
-  const movie = findMovie(id);
+  const movie = await findMovie(id);
   if (!movie) notFound();
 
   const ext = (movie.video || "").split("?")[0].split(".").pop().toLowerCase();

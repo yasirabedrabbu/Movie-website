@@ -1,17 +1,22 @@
+import { Suspense } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import HeroCarousel from "@/components/HeroCarousel";
 import BrowseSection from "@/components/BrowseSection";
-import { allMovies } from "@/lib/movies";
+import { listMovies, getCategories } from "@/lib/movies";
 import { getMovieMedia } from "@/lib/tmdb";
 
 const SLIDE_COUNT = 6;
 
 async function buildSlides() {
-  const picks = allMovies.slice(0, SLIDE_COUNT);
+  const { movies } = await listMovies({ pageSize: 40, sort: "new" });
+  const withIds = movies.filter((m) => m.tmdbId);
+  const rest = movies.filter((m) => !m.tmdbId);
+  const picks = [...withIds, ...rest].slice(0, SLIDE_COUNT);
+
   return Promise.all(
     picks.map(async (m) => {
-      const media = await getMovieMedia(m.title, m.year);
+      const media = await getMovieMedia(m.title, m.year, m.tmdbId);
       return {
         id: m.id,
         title: media?.title || m.title,
@@ -26,15 +31,29 @@ async function buildSlides() {
   );
 }
 
-export default async function Home() {
-  const slides = await buildSlides();
+async function HomeContent() {
+  const [slides, initial, categories] = await Promise.all([
+    buildSlides(),
+    listMovies(),
+    getCategories(),
+  ]);
 
+  return (
+    <>
+      <HeroCarousel slides={slides} />
+      <BrowseSection initial={initial} categories={categories} />
+    </>
+  );
+}
+
+export default function Home() {
   return (
     <>
       <Header />
       <main>
-        <HeroCarousel slides={slides} />
-        <BrowseSection />
+        <Suspense fallback={<div className="carousel skeleton" aria-busy="true" />}>
+          <HomeContent />
+        </Suspense>
       </main>
       <Footer />
     </>
