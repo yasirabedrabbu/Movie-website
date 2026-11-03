@@ -65,13 +65,17 @@ export async function listMovies({
   if (tokens.length) list = list.filter((m) => tokens.every((t) => m._search.includes(t)));
 
   const cmp = SORTS[sort];
-  if (cmp) list = [...list].sort(cmp);
 
   if (tokens.length) {
     const q = tokens.join(" ");
-    list = [...list].sort(
-      (a, b) => Number(b._search.startsWith(q)) - Number(a._search.startsWith(q))
-    );
+    const starts = (m) => Number(m._search.startsWith(q));
+    list = [...list].sort((a, b) => {
+      const byStart = starts(b) - starts(a);
+      if (byStart !== 0) return byStart;
+      return cmp ? cmp(a, b) : 0;
+    });
+  } else if (cmp) {
+    list = [...list].sort(cmp);
   }
 
   const start = (p - 1) * size;
