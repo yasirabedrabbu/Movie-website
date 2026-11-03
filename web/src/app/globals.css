@@ -2,6 +2,9 @@
 @import "../styles/base.css";
 @import "../styles/layout.css";
 @import "../styles/hero.css";
+@import "../styles/carousel.css";
+@import "../styles/detail.css";
+@import "../styles/modal.css";
 @import "../styles/buttons.css";
 @import "../styles/search.css";
 @import "../styles/chips.css";

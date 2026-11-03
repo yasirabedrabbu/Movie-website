@@ -1,0 +1,29 @@
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+}
+
+.modal-body {
+  position: relative;
+  width: min(960px, 100%);
+}
+
+.modal-close {
+  position: absolute;
+  top: -52px;
+  right: 0;
+}
+
+.modal-frame {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--bg);
+}

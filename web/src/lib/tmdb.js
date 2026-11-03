@@ -7,17 +7,24 @@ async function tmdb(path) {
   "use cache";
   cacheLife("days");
 
-  const res = await fetch(`https://api.themoviedb.org/3${path}`, {
-    headers: {
-      Authorization: `Bearer ${process.env.NEXT_PUBLIC_TMDB_TOKEN}`,
-      accept: "application/json",
-    },
-  });
-  if (!res.ok) return null;
-  return res.json();
+  const token = process.env.TMDB_TOKEN;
+  if (!token) return null;
+
+  try {
+    const res = await fetch(`${BASE}${path}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        accept: "application/json",
+      },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
 }
 
-// Movie title + year diye TMDB te khuje backdrop ar trailer anbe
+// Search TMDB by title and year to get the backdrop and trailer
 export async function getMovieMedia(title, year) {
   "use cache";
   cacheLife("days");
@@ -37,7 +44,7 @@ export async function getMovieMedia(title, year) {
     title: hit.title,
     overview: hit.overview,
     rating: hit.vote_average,
-    backdrop: hit.backdrop_path ? `${IMG}/original${hit.backdrop_path}` : null,
+    backdrop: hit.backdrop_path ? `${IMG}/w1280${hit.backdrop_path}` : null,
     poster: hit.poster_path ? `${IMG}/w500${hit.poster_path}` : null,
     trailerKey: trailer?.key || null,
   };
