@@ -1,6 +1,9 @@
 .carousel {
   position: relative;
-  min-height: 70vh;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 85vh;
+  min-height: 420px;
   display: flex;
   align-items: flex-end;
   overflow: hidden;
