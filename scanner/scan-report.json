@@ -1,12 +1,14 @@
 {
-  "generatedAt": "2026-11-03T10:44:15.259Z",
-  "movies": 12679,
-  "versions": 13484,
+  "generatedAt": "2026-11-03T11:05:49.375Z",
+  "complete": true,
+  "movies": 12693,
+  "versions": 13498,
   "duplicatesSkipped": 410,
+  "carriedOver": 0,
   "categoryCounts": {
     "Animation": 1661,
     "English": 3847,
-    "Hindi": 3652,
+    "Hindi": 3666,
     "South": 3519
   },
   "missingCategories": [
@@ -15,6 +17,7 @@
   "ignoredFolders": [
     "IMDb Top-250 Movies"
   ],
+  "unresolved": [],
   "roots": [
     {
       "category": "Animation",
@@ -23,7 +26,9 @@
       "url": "http://172.16.50.14/DHAKA-FLIX-14/Animation%20Movies/",
       "folders": 1481,
       "versionsFound": 1452,
-      "errors": 0,
+      "retried": 0,
+      "unresolved": 0,
+      "carriedOver": 0,
       "firstError": null
     },
     {
@@ -33,7 +38,9 @@
       "url": "http://172.16.50.14/DHAKA-FLIX-14/Animation%20Movies%20%281080p%29/",
       "folders": 614,
       "versionsFound": 613,
-      "errors": 0,
+      "retried": 0,
+      "unresolved": 0,
+      "carriedOver": 0,
       "firstError": null
     },
     {
@@ -43,7 +50,9 @@
       "url": "http://172.16.50.14/DHAKA-FLIX-14/English%20Movies%20%281080p%29/",
       "folders": 3889,
       "versionsFound": 3854,
-      "errors": 0,
+      "retried": 0,
+      "unresolved": 0,
+      "carriedOver": 0,
       "firstError": null
     },
     {
@@ -51,10 +60,12 @@
       "type": "movie",
       "name": "Hindi Movies",
       "url": "http://172.16.50.14/DHAKA-FLIX-14/Hindi%20Movies/",
-      "folders": 3760,
-      "versionsFound": 3722,
-      "errors": 14,
-      "firstError": "http://172.16.50.14/DHAKA-FLIX-14/Hindi%20Movies/%282006%29/Holiday%20%282006%29%20720p/ -> fetch failed"
+      "folders": 3774,
+      "versionsFound": 3736,
+      "retried": 0,
+      "unresolved": 0,
+      "carriedOver": 0,
+      "firstError": null
     },
     {
       "category": "Korean",
@@ -70,14 +81,21 @@
       "url": "http://172.16.50.14/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/",
       "folders": 4347,
       "versionsFound": 4253,
-      "errors": 0,
+      "retried": 0,
+      "unresolved": 0,
+      "carriedOver": 0,
       "firstError": null
     }
   ],
   "sizes": {
-    "total": 14511,
-    "withSize": 14511,
+    "total": 14525,
+    "withSize": 14525,
     "failed": 0
   },
-  "tmdb": null
+  "tmdb": {
+    "matched": 0,
+    "failed": 24,
+    "stopped": true,
+    "firstError": "TMDB HTTP 401"
+  }
 }
