@@ -45,7 +45,8 @@ const EXPECTED = ["Hindi", "English", "South", "Animation", "Documentary"];
 const VIDEO = /\.(mkv|mp4|avi|webm|m4v)$/i;
 const IMAGE = /\.(jpe?g|png|webp)$/i;
 const SUB = /\.(srt|vtt)$/i;
-const CONCURRENCY = 8;
+const CONCURRENCY = 6;
+const RETRY_PASSES = 3;
 const RANK = { "2160p": 4, "1080p": 3, "720p": 2, "480p": 1 };
 
 const OUT = resolve(__dirname, ONLY ? "../web/public/movies.only.json" : "../web/public/movies.json");
@@ -56,6 +57,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const norm = (s) => { try { return decodeURIComponent(s); } catch { return s; } };
 const lastSegment = (url) => norm(url.replace(/\/$/, "").split("/").pop() || "");
 const hash = (s) => createHash("md5").update(s).digest("hex").slice(0, 10);
+const reason = (e) => (e.cause?.code ? `${e.message} (${e.cause.code})` : e.message);
 
 async function pool(items, limit, fn) {
   let i = 0;
@@ -66,16 +68,16 @@ async function pool(items, limit, fn) {
   );
 }
 
-async function request(url, init = {}, tries = 3) {
+async function request(url, init = {}, tries = 6) {
   let last;
   for (let i = 0; i < tries; i++) {
     try {
-      const res = await fetch(url, { ...init, signal: AbortSignal.timeout(20000) });
+      const res = await fetch(url, { ...init, signal: AbortSignal.timeout(30000) });
       if (res.status === 429 || res.status >= 500) throw new Error(`HTTP ${res.status}`);
       return res;
     } catch (e) {
       last = e;
-      await sleep(400 * (i + 1));
+      await sleep(Math.min(500 * 2 ** i, 8000));
     }
   }
   throw last;
@@ -134,9 +136,9 @@ function parseTitle(folderName) {
   return { title: title || folderName, year: year ? Number(year) : null };
 }
 
-async function crawl(root, stats) {
+async function crawl(root, stats, seeds = [root.url], concurrency = CONCURRENCY) {
   const found = [];
-  const queue = [root.url];
+  const queue = [...seeds];
   let active = 0;
 
   async function visit(url) {
@@ -178,17 +180,53 @@ async function crawl(root, stats) {
       try {
         await visit(url);
       } catch (e) {
-        const msg = `${url} -> ${e.message}`;
-        stats.errors.push(msg);
-        console.warn(`  ! ${msg}`);
+        stats.failed.set(url, reason(e));
+        console.warn(`  ! ${norm(url)} -> ${reason(e)}`);
       } finally {
         active--;
       }
     }
   }
 
-  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+  await Promise.all(Array.from({ length: concurrency }, worker));
   return found;
+}
+
+async function crawlRoot(root) {
+  const stats = { folders: 0, retried: 0, failed: new Map() };
+  const found = await crawl(root, stats);
+  for (let pass = 1; pass <= RETRY_PASSES && stats.failed.size > 0; pass++) {
+    const seeds = [...stats.failed.keys()];
+    stats.failed.clear();
+    stats.retried += seeds.length;
+    console.log(`  retry pass ${pass}/${RETRY_PASSES}: ${seeds.length} folders`);
+    await sleep(3000 * pass);
+    found.push(...(await crawl(root, stats, seeds, 2)));
+  }
+  return { found, stats };
+}
+
+function carryOver(previous, urls) {
+  if (!previous?.movies || urls.length === 0) return [];
+  const prefixes = urls.map(norm);
+  const out = [];
+  for (const m of previous.movies) {
+    for (const v of m.versions || []) {
+      if (!prefixes.some((p) => norm(v.path).startsWith(p))) continue;
+      out.push({
+        category: v.category || m.category,
+        folder: v.folder,
+        title: m.title,
+        year: m.year,
+        quality: v.quality,
+        path: v.path,
+        poster: v.poster,
+        subtitles: v.subtitles || [],
+        files: v.files,
+      });
+    }
+  }
+  return out;
 }
 
 function groupMovies(entries) {
@@ -313,7 +351,7 @@ async function fillTmdb(movies, cache) {
       ok++;
     } catch (e) {
       failed++;
-      firstError ||= e.cause?.code ? `${e.message} (${e.cause.code})` : e.message;
+      firstError ||= reason(e);
       if (ok === 0 && failed >= 20) {
         stopped = true;
         console.error(`\nTMDB lookup is failing: ${firstError}`);
@@ -347,12 +385,15 @@ async function main() {
     process.exit(1);
   }
 
+  const previous = await loadJson(OUT, null);
   const cache = await loadJson(CACHE, { sizes: {}, tmdb: {} });
   cache.sizes ||= {};
   cache.tmdb ||= {};
 
   const entries = [];
   const rootReports = [];
+  const unresolved = [];
+  let carriedTotal = 0;
 
   for (const root of roots) {
     if (ONLY && root.category.toLowerCase() !== ONLY.toLowerCase()) continue;
@@ -362,9 +403,12 @@ async function main() {
       continue;
     }
     console.log(`Scanning ${root.category}: ${root.name}`);
-    const stats = { folders: 0, errors: [] };
-    const found = await crawl(root, stats);
-    entries.push(...found);
+    const { found, stats } = await crawlRoot(root);
+    const failedUrls = [...stats.failed.keys()];
+    const carried = carryOver(previous, failedUrls);
+    entries.push(...found, ...carried);
+    carriedTotal += carried.length;
+    for (const [url, error] of stats.failed) unresolved.push({ root: root.name, url, error });
     rootReports.push({
       category: root.category,
       type: root.type,
@@ -372,11 +416,13 @@ async function main() {
       url: root.url,
       folders: stats.folders,
       versionsFound: found.length,
-      errors: stats.errors.length,
-      firstError: stats.errors[0] || null,
+      retried: stats.retried,
+      unresolved: failedUrls.length,
+      carriedOver: carried.length,
+      firstError: failedUrls.length ? stats.failed.get(failedUrls[0]) : null,
     });
-    console.log(`  ${found.length} versions in ${stats.folders} folders`);
-    if (found.length === 0) console.warn(`  ! ${root.name}: nothing found`);
+    console.log(`  ${found.length} versions in ${stats.folders} folders, ${failedUrls.length} unresolved, ${carried.length} carried over`);
+    if (found.length === 0 && carried.length === 0) console.warn(`  ! ${root.name}: nothing found`);
   }
 
   const { movies, duplicates } = groupMovies(entries);
@@ -390,7 +436,6 @@ async function main() {
   for (const m of movies) categoryCounts[m.category] = (categoryCounts[m.category] || 0) + 1;
   const missingCategories = ONLY ? [] : EXPECTED.filter((c) => !categoryCounts[c]);
 
-  const previous = await loadJson(OUT, null);
   if (!FORCE && previous?.count && movies.length < previous.count * 0.5) {
     console.error(
       `\nAborted: scan found ${movies.length} movies but the current file has ${previous.count}. ` +
@@ -409,12 +454,15 @@ async function main() {
 
   const report = {
     generatedAt: new Date().toISOString(),
+    complete: unresolved.length === 0,
     movies: movies.length,
     versions: entries.length - duplicates,
     duplicatesSkipped: duplicates,
+    carriedOver: carriedTotal,
     categoryCounts,
     missingCategories,
     ignoredFolders: unmatched,
+    unresolved,
     roots: rootReports,
     sizes: sizeInfo,
     tmdb: tmdbInfo,
@@ -425,6 +473,10 @@ async function main() {
   console.log("Per category:", categoryCounts);
   if (missingCategories.length) console.warn(`MISSING categories (0 movies): ${missingCategories.join(", ")}`);
   if (unmatched.length) console.warn(`Ignored folders: ${unmatched.join(", ")}`);
+  if (unresolved.length) {
+    console.warn(`INCOMPLETE: ${unresolved.length} folders could not be read, ${carriedTotal} versions kept from the previous scan.`);
+    process.exitCode = 2;
+  }
   if (sizeInfo) console.log(`Sizes: ${sizeInfo.withSize}/${sizeInfo.total} files, ${sizeInfo.failed} failed`);
   if (tmdbInfo) console.log(`TMDB: ${tmdbInfo.matched}/${movies.length} matched, ${tmdbInfo.failed} failed`);
   console.log(`Report -> ${REPORT}`);

@@ -1,0 +1,83 @@
+{
+  "generatedAt": "2026-11-03T10:44:15.259Z",
+  "movies": 12679,
+  "versions": 13484,
+  "duplicatesSkipped": 410,
+  "categoryCounts": {
+    "Animation": 1661,
+    "English": 3847,
+    "Hindi": 3652,
+    "South": 3519
+  },
+  "missingCategories": [
+    "Documentary"
+  ],
+  "ignoredFolders": [
+    "IMDb Top-250 Movies"
+  ],
+  "roots": [
+    {
+      "category": "Animation",
+      "type": "movie",
+      "name": "Animation Movies",
+      "url": "http://172.16.50.14/DHAKA-FLIX-14/Animation%20Movies/",
+      "folders": 1481,
+      "versionsFound": 1452,
+      "errors": 0,
+      "firstError": null
+    },
+    {
+      "category": "Animation",
+      "type": "movie",
+      "name": "Animation Movies (1080p)",
+      "url": "http://172.16.50.14/DHAKA-FLIX-14/Animation%20Movies%20%281080p%29/",
+      "folders": 614,
+      "versionsFound": 613,
+      "errors": 0,
+      "firstError": null
+    },
+    {
+      "category": "English",
+      "type": "movie",
+      "name": "English Movies (1080p)",
+      "url": "http://172.16.50.14/DHAKA-FLIX-14/English%20Movies%20%281080p%29/",
+      "folders": 3889,
+      "versionsFound": 3854,
+      "errors": 0,
+      "firstError": null
+    },
+    {
+      "category": "Hindi",
+      "type": "movie",
+      "name": "Hindi Movies",
+      "url": "http://172.16.50.14/DHAKA-FLIX-14/Hindi%20Movies/",
+      "folders": 3760,
+      "versionsFound": 3722,
+      "errors": 14,
+      "firstError": "http://172.16.50.14/DHAKA-FLIX-14/Hindi%20Movies/%282006%29/Holiday%20%282006%29%20720p/ -> fetch failed"
+    },
+    {
+      "category": "Korean",
+      "type": "series",
+      "name": "KOREAN TV & WEB Series",
+      "url": "http://172.16.50.14/DHAKA-FLIX-14/KOREAN%20TV%20%26%20WEB%20Series/",
+      "skipped": true
+    },
+    {
+      "category": "South",
+      "type": "movie",
+      "name": "SOUTH INDIAN MOVIES",
+      "url": "http://172.16.50.14/DHAKA-FLIX-14/SOUTH%20INDIAN%20MOVIES/",
+      "folders": 4347,
+      "versionsFound": 4253,
+      "errors": 0,
+      "firstError": null
+    }
+  ],
+  "sizes": {
+    "total": 14511,
+    "withSize": 14511,
+    "failed": 0
+  },
+  "tmdb": null
+}

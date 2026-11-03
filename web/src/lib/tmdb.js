@@ -112,3 +112,79 @@ export async function getMovieMedia(title, year, tmdbId = null) {
     trailerKey: pickTrailer(m.videos?.results)?.key || null,
   };
 }
+
+function mapPerson(p, extra = {}) {
+  return {
+    id: p.id,
+    name: p.name,
+    photo: tmdbImage(p.profile_path, "w185"),
+    ...extra,
+  };
+}
+
+const CREW_JOBS = [
+  "Director",
+  "Screenplay",
+  "Writer",
+  "Story",
+  "Producer",
+  "Original Music Composer",
+  "Director of Photography",
+  "Editor",
+];
+
+export async function getMovieDetails(tmdbId) {
+  if (!tmdbId) return null;
+
+  const m = await tmdb(`/movie/${tmdbId}`, {
+    append_to_response: "videos,credits,similar,external_ids",
+    include_video_language: "en,null",
+  });
+  if (!m) return null;
+
+  const seen = new Set();
+  const crew = (m.credits?.crew || [])
+    .filter((c) => CREW_JOBS.includes(c.job))
+    .filter((c) => {
+      const key = `${c.id}|${c.job}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => CREW_JOBS.indexOf(a.job) - CREW_JOBS.indexOf(b.job))
+    .slice(0, 14)
+    .map((c) => mapPerson(c, { job: c.job }));
+
+  return {
+    tmdbId: m.id,
+    imdbId: m.external_ids?.imdb_id || m.imdb_id || null,
+    title: m.title,
+    originalTitle: m.original_title || null,
+    tagline: m.tagline || "",
+    overview: m.overview || "",
+    status: m.status || null,
+    rating: m.vote_average || null,
+    voteCount: m.vote_count || 0,
+    runtime: m.runtime || null,
+    genres: (m.genres || []).map((g) => g.name),
+    releaseDate: m.release_date || null,
+    year: releaseYear(m),
+    languages: (m.spoken_languages || []).map((l) => l.english_name || l.name).filter(Boolean),
+    countries: (m.production_countries || []).map((c) => c.name),
+    companies: (m.production_companies || []).map((c) => c.name),
+    budget: m.budget || null,
+    revenue: m.revenue || null,
+    backdrop: tmdbImage(m.backdrop_path, "w1280"),
+    poster: tmdbImage(m.poster_path, "w500"),
+    trailerKey: pickTrailer(m.videos?.results)?.key || null,
+    cast: (m.credits?.cast || [])
+      .slice(0, 24)
+      .map((p) => mapPerson(p, { character: p.character || "" })),
+    crew,
+    similar: (m.similar?.results || []).slice(0, 20).map((r) => ({
+      id: r.id,
+      title: r.title,
+      year: releaseYear(r),
+    })),
+  };
+}
