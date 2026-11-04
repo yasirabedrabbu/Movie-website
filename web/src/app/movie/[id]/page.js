@@ -6,7 +6,7 @@ import Footer from "@/components/Footer";
 import Icon from "@/components/Icon";
 import MovieGrid from "@/components/MovieGrid";
 import ShareButton from "@/components/ShareButton";
-import Player from "./Player";
+import VersionPlayer from "./VersionPlayer";
 import Tabs from "./Tabs";
 import { findMovie, listMovies } from "@/lib/movies";
 import { findTmdbId, getMovieDetails } from "@/lib/tmdb";
@@ -20,7 +20,6 @@ import {
   StarIcon,
 } from "@hugeicons/core-free-icons";
 
-const NATIVE = ["mp4", "webm", "m4v"];
 const compact = new Intl.NumberFormat("en", { notation: "compact" });
 
 const safe = (s) => {
@@ -28,6 +27,12 @@ const safe = (s) => {
 };
 const slug = (s) => String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 const extOf = (u) => (u || "").split("?")[0].split(".").pop().toLowerCase();
+const runtimeText = (m) => {
+  if (!m) return null;
+  const h = Math.floor(m / 60);
+  const min = m % 60;
+  return h ? `${h}h ${min}m` : `${min}m`;
+};
 const money = (n) =>
   n
     ? new Intl.NumberFormat("en-US", {
@@ -36,12 +41,6 @@ const money = (n) =>
         maximumFractionDigits: 0,
       }).format(n)
     : null;
-const runtimeText = (m) => {
-  if (!m) return null;
-  const h = Math.floor(m / 60);
-  const min = m % 60;
-  return h ? `${h}h ${min}m` : `${min}m`;
-};
 
 function getVersions(movie) {
   if (movie.versions?.length) return movie.versions;
@@ -154,12 +153,7 @@ async function MovieContent({ params }) {
   const related = d ? await matchRelated(d.similar, movie.id) : [];
 
   const versions = getVersions(movie);
-  const allFiles = versions.flatMap((v) => v.files);
-  const playable = allFiles.find((f) => NATIVE.includes(f.ext));
-  const playSrc = playable?.url ?? allFiles[0]?.url ?? movie.video;
-  const vlcSrc = allFiles[0]?.url ?? movie.video;
-  const playVersion = versions.find((v) => v.files.some((f) => f.url === playSrc));
-  const subtitles = playVersion?.subtitles ?? movie.subtitles ?? [];
+  const vlcSrc = versions.flatMap((v) => v.files)[0]?.url ?? movie.video;
 
   const title = d?.title || movie.title;
   const poster = d?.poster || movie.poster;
@@ -243,8 +237,8 @@ async function MovieContent({ params }) {
       label: "Cast",
       content: d?.cast.length > 0 && (
         <ul className="mv-cast">
-          {d.cast.map((p) => (
-            <li key={p.id}>
+          {d.cast.map((p, i) => (
+            <li key={`${p.id}-${i}`}>
               <Link href={`/person/${p.id}`}>
                 {p.photo ? (
                   <img src={p.photo} alt="" loading="lazy" width="185" height="278" />
@@ -291,6 +285,7 @@ async function MovieContent({ params }) {
             <Icon icon={ArrowLeft01Icon} size={20} />
             Back
           </Link>
+
           <div className="mv-head">
             {poster && (
               <img
@@ -301,8 +296,9 @@ async function MovieContent({ params }) {
                 height="360"
               />
             )}
+
             <div className="mv-info">
-              <p className="card-meta">{meta.join(" · ")}</p>
+              <p className="mv-meta">{meta.join(" · ")}</p>
               <h1 id="mv-title">{title}</h1>
               {d?.tagline && <p className="mv-tagline">{d.tagline}</p>}
 
@@ -330,7 +326,7 @@ async function MovieContent({ params }) {
                 </ul>
               )}
 
-              <div className="hero-actions">
+              <div className="hero-actions mv-actions">
                 <a className="btn btn-primary" href="#player">
                   <Icon icon={PlayIcon} size={20} />
                   Watch
@@ -364,18 +360,20 @@ async function MovieContent({ params }) {
 
       <div className="container mv-body">
         <section className="mv-section" id="player" aria-label="Player">
-                 <Player src={playSrc} title={title} subtitles={subtitles} />
+          <VersionPlayer versions={versions} title={title} />
         </section>
 
-        <Tabs tabs={tabs} />
+        <section className="mv-section">
+          <Tabs tabs={tabs} />
+        </section>
 
         <section className="mv-section" id="files" aria-labelledby="mv-files">
-          <h2 id="mv-files">Available versions</h2>
+          <h2 id="mv-files" className="mv-section-title">Available versions</h2>
           <ul className="mv-files">
-            {versions.map((v) => (
-              <li key={v.path || v.quality}>
+            {versions.map((v, vi) => (
+              <li key={v.path || `${v.quality}-${vi}`}>
                 <div>
-                  <strong>{v.quality || "HD"}</strong>{" "}
+                  <strong>{v.label || v.quality || "HD"}</strong>{" "}
                   <span className="card-meta">
                     {formatSize(v.size)} · {v.files.length} {v.files.length === 1 ? "file" : "files"}
                   </span>

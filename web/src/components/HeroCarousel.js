@@ -1,18 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import Link from "next/link";
 import TrailerModal from "@/components/TrailerModal";
 import Icon from "@/components/Icon";
-import Link from "next/link";
 import {
   PlayIcon,
   PauseIcon,
-  PlayCircleIcon,
+  InformationCircleIcon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
+  StarIcon,
 } from "@hugeicons/core-free-icons";
 
-const INTERVAL_MS = 6000;
+const INTERVAL_MS = 7000;
 const QUERY = "(prefers-reduced-motion: reduce)";
 
 function useReducedMotion() {
@@ -42,7 +43,6 @@ export default function HeroCarousel({ slides }) {
   const next = useCallback(() => setIndex((i) => (i + 1) % count), [count]);
   const prev = () => setIndex((i) => (i - 1 + count) % count);
 
-  // Restarts after every slide change, so manual navigation resets the timer.
   useEffect(() => {
     if (!playing) return;
     const t = setTimeout(next, INTERVAL_MS);
@@ -54,7 +54,7 @@ export default function HeroCarousel({ slides }) {
 
   return (
     <section
-      className="carousel"
+      className="hero-slider"
       aria-roledescription="carousel"
       aria-label="Featured movies"
       onMouseEnter={() => setHover(true)}
@@ -67,96 +67,95 @@ export default function HeroCarousel({ slides }) {
       {slide.backdrop && (
         <img
           key={slide.id}
-          className="carousel-bg"
+          className="hero-bg"
           src={slide.backdrop}
           alt=""
           fetchPriority={index === 0 ? "high" : "auto"}
         />
       )}
 
-      <div className="container carousel-content">
+      <div className="container hero-content">
         <div
-          className="carousel-copy"
+          key={slide.id}
+          className="hero-copy"
           role="group"
           aria-roledescription="slide"
           aria-label={`${index + 1} of ${count}`}
           aria-live={playing ? "off" : "polite"}
         >
-          <p className="card-meta">
-            {slide.year} · {slide.quality || "HD"}
-          </p>
-          <h1>{slide.title}</h1>
-          {slide.overview && (
-            <p className="carousel-overview">{slide.overview}</p>
-          )}
+          <h1 className="hero-title">{slide.title}</h1>
+
+          <ul className="hero-meta">
+            {slide.rating && (
+              <li className="hero-rating">
+                <Icon icon={StarIcon} size={16} />
+                {slide.rating.toFixed(1)}
+              </li>
+            )}
+            {slide.year && <li>{slide.year}</li>}
+            {slide.runtime && <li>{Math.floor(slide.runtime / 60)}h {slide.runtime % 60}m</li>}
+            <li className="hero-badge">{slide.quality || "HD"}</li>
+            {slide.genres?.map((g) => (
+              <li key={g}>{g}</li>
+            ))}
+          </ul>
+
+          {slide.overview && <p className="hero-overview">{slide.overview}</p>}
+
           <div className="hero-actions">
-            {slide.trailerKey && (
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => setShowTrailer(true)}
-              >
+            {slide.trailerKey ? (
+              <button type="button" className="btn btn-primary" onClick={() => setShowTrailer(true)}>
                 <Icon icon={PlayIcon} size={20} />
                 Trailer
               </button>
+            ) : (
+              <Link className="btn btn-primary" href={slide.href}>
+                <Icon icon={PlayIcon} size={20} />
+                Watch
+              </Link>
             )}
-           <Link
-  className={`btn ${slide.trailerKey ? "btn-ghost" : "btn-primary"}`}
-  href={slide.href}
->
-  <Icon icon={PlayCircleIcon} size={20} />
-  Details
-</Link>
+            <Link className="btn btn-ghost" href={slide.href}>
+              <Icon icon={InformationCircleIcon} size={20} />
+              More info
+            </Link>
           </div>
         </div>
       </div>
 
       {count > 1 && (
         <>
-          <button
-            type="button"
-            className="carousel-nav prev"
-            onClick={prev}
-            aria-label="Previous slide"
-          >
+          <button type="button" className="hero-nav prev" onClick={prev} aria-label="Previous slide">
             <Icon icon={ArrowLeft01Icon} size={24} />
           </button>
-          <button
-            type="button"
-            className="carousel-nav next"
-            onClick={next}
-            aria-label="Next slide"
-          >
+          <button type="button" className="hero-nav next" onClick={next} aria-label="Next slide">
             <Icon icon={ArrowRight01Icon} size={24} />
           </button>
 
-          <button
-            type="button"
-            className="carousel-pause"
-            onClick={() => setUserPaused((p) => !p)}
-            aria-label={
-              userPaused ? "Start automatic slide show" : "Pause automatic slide show"
-            }
-          >
-            <Icon icon={userPaused ? PlayIcon : PauseIcon} size={20} />
-          </button>
-
-          <div className="carousel-dots" role="group" aria-label="Choose slide">
+          <div className="hero-dots" role="group" aria-label="Choose slide">
             {slides.map((s, i) => (
               <button
                 key={s.id}
                 type="button"
-                className="dot"
+                className={`hero-dot${i === index ? " is-active" : ""}`}
                 aria-label={`Slide ${i + 1} of ${count}`}
                 aria-current={i === index}
                 onClick={() => setIndex(i)}
               />
             ))}
           </div>
+
+          <button
+            type="button"
+            className="hero-pause"
+            onClick={() => setUserPaused((p) => !p)}
+            aria-label={userPaused ? "Start automatic slide show" : "Pause automatic slide show"}
+          >
+            <Icon icon={userPaused ? PlayIcon : PauseIcon} size={18} />
+          </button>
         </>
       )}
 
-      {showTrailer && (
+      {showTrailer && slide.trailerKey && (
         <TrailerModal
           trailerKey={slide.trailerKey}
           title={slide.title}
