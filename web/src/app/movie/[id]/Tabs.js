@@ -1,17 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 export default function Tabs({ tabs }) {
   const visible = tabs.filter((t) => t.content);
   const [active, setActive] = useState(visible[0]?.id);
+  const refs = useRef({});
 
   if (!visible.length) return null;
 
+  const go = (id) => {
+    setActive(id);
+    refs.current[id]?.focus();
+  };
+
   const onKey = (e) => {
     const i = visible.findIndex((t) => t.id === active);
-    if (e.key === "ArrowRight") setActive(visible[(i + 1) % visible.length].id);
-    if (e.key === "ArrowLeft") setActive(visible[(i - 1 + visible.length) % visible.length].id);
+    let target = null;
+    if (e.key === "ArrowRight") target = visible[(i + 1) % visible.length];
+    else if (e.key === "ArrowLeft") target = visible[(i - 1 + visible.length) % visible.length];
+    else if (e.key === "Home") target = visible[0];
+    else if (e.key === "End") target = visible[visible.length - 1];
+    if (!target) return;
+    e.preventDefault();
+    go(target.id);
   };
 
   return (
@@ -20,6 +32,10 @@ export default function Tabs({ tabs }) {
         {visible.map((t) => (
           <button
             key={t.id}
+            ref={(el) => {
+              refs.current[t.id] = el;
+            }}
+            type="button"
             role="tab"
             id={`tab-${t.id}`}
             aria-selected={active === t.id}

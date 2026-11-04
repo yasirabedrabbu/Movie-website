@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import TrailerModal from "@/components/TrailerModal";
 import Icon from "@/components/Icon";
 import {
   PlayIcon,
   PauseIcon,
+  PlayCircleIcon,
   InformationCircleIcon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
@@ -14,6 +15,7 @@ import {
 } from "@hugeicons/core-free-icons";
 
 const INTERVAL_MS = 7000;
+const SWIPE_PX = 50;
 const QUERY = "(prefers-reduced-motion: reduce)";
 
 function useReducedMotion() {
@@ -34,6 +36,7 @@ export default function HeroCarousel({ slides }) {
   const [userPaused, setUserPaused] = useState(false);
   const [hover, setHover] = useState(false);
   const [focus, setFocus] = useState(false);
+  const touchStart = useRef(null);
   const reducedMotion = useReducedMotion();
 
   const count = slides.length;
@@ -41,7 +44,7 @@ export default function HeroCarousel({ slides }) {
     count > 1 && !userPaused && !hover && !focus && !showTrailer && !reducedMotion;
 
   const next = useCallback(() => setIndex((i) => (i + 1) % count), [count]);
-  const prev = () => setIndex((i) => (i - 1 + count) % count);
+  const prev = useCallback(() => setIndex((i) => (i - 1 + count) % count), [count]);
 
   useEffect(() => {
     if (!playing) return;
@@ -51,6 +54,18 @@ export default function HeroCarousel({ slides }) {
 
   if (!count) return null;
   const slide = slides[index];
+
+  const onTouchStart = (e) => {
+    touchStart.current = e.touches[0].clientX;
+  };
+  const onTouchEnd = (e) => {
+    if (touchStart.current == null || count < 2) return;
+    const dx = e.changedTouches[0].clientX - touchStart.current;
+    touchStart.current = null;
+    if (Math.abs(dx) < SWIPE_PX) return;
+    if (dx < 0) next();
+    else prev();
+  };
 
   return (
     <section
@@ -63,11 +78,13 @@ export default function HeroCarousel({ slides }) {
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget)) setFocus(false);
       }}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
     >
       {slide.backdrop && (
         <img
           key={slide.id}
-          className="hero-bg"
+          className={`hero-bg${slide.isPoster ? " is-poster" : ""}`}
           src={slide.backdrop}
           alt=""
           fetchPriority={index === 0 ? "high" : "auto"}
@@ -103,16 +120,15 @@ export default function HeroCarousel({ slides }) {
           {slide.overview && <p className="hero-overview">{slide.overview}</p>}
 
           <div className="hero-actions">
-            {slide.trailerKey ? (
-              <button type="button" className="btn btn-primary" onClick={() => setShowTrailer(true)}>
-                <Icon icon={PlayIcon} size={20} />
+            <Link className="btn btn-primary" href={`${slide.href}#player`}>
+              <Icon icon={PlayIcon} size={20} />
+              Watch
+            </Link>
+            {slide.trailerKey && (
+              <button type="button" className="btn btn-ghost" onClick={() => setShowTrailer(true)}>
+                <Icon icon={PlayCircleIcon} size={20} />
                 Trailer
               </button>
-            ) : (
-              <Link className="btn btn-primary" href={slide.href}>
-                <Icon icon={PlayIcon} size={20} />
-                Watch
-              </Link>
             )}
             <Link className="btn btn-ghost" href={slide.href}>
               <Icon icon={InformationCircleIcon} size={20} />

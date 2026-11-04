@@ -1,20 +1,33 @@
 /* Netflix-style layout on top of our colors. Loaded last so it wins. */
 
+:root { --header-h: 68px; }
+@media (max-width: 640px) { :root { --header-h: 112px; } }
+
 h1, h2, h3 { font-weight: 800; letter-spacing: -0.01em; }
 
-/* Header: transparent gradient over content, no hard border */
+/* Skip link */
+.skip-link {
+  position: absolute;
+  left: 16px;
+  top: -64px;
+  z-index: 200;
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+.skip-link:focus { top: 12px; }
+
+/* Header: legible over any content (was a transparent gradient) */
 .header {
   position: fixed;
   inset: 0 0 auto 0;
-  z-index: 50;
-  background: linear-gradient(
-    to bottom,
-    rgba(11, 11, 16, 0.95) 0%,
-    rgba(11, 11, 16, 0.6) 60%,
-    rgba(11, 11, 16, 0) 100%
-  );
-  backdrop-filter: none;
-  border-bottom: 0;
+  z-index: 70; /* above mobile drawer (61) so the menu/close button stays usable */
+  background: rgba(11, 11, 16, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 .header-inner { min-height: 68px; justify-content: flex-start; }
 .logo { font-size: 1.6rem; font-weight: 900; }
@@ -29,19 +42,38 @@ h1, h2, h3 { font-weight: 800; letter-spacing: -0.01em; }
   scrollbar-width: none;
 }
 .nav::-webkit-scrollbar { display: none; }
-.nav a { white-space: nowrap; transition: color var(--dur-fast) var(--ease); }
+.nav a { white-space: nowrap; padding-block: 8px; transition: color var(--dur-fast) var(--ease); }
 .nav a:hover,
 .nav a:focus-visible { color: var(--text); }
 
-.header-search { margin-left: auto; flex: 0 1 auto; }
-.header-search .search { width: min(260px, 100%); }
+/* Header search: icon lives INSIDE the field */
+.header-search {
+  position: relative;
+  align-items: center;
+  margin-left: auto;
+  flex: 0 1 auto;
+}
+.header-search svg {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.header-search .search {
+  width: min(260px, 100%);
+  padding-left: 42px;
+  border-color: #6e6e84; /* ~3.9:1 vs bg (WCAG 1.4.11) */
+}
+.header-search .search:hover,
+.header-search .search:focus-visible { border-color: var(--text); }
 
 /* Pages without a full-bleed hero: clear the fixed header */
 .browse,
-.cat-page { padding-top: 96px; }
-.mv-hero-inner { padding-top: 96px; }
+.cat-page { padding-top: calc(var(--header-h) + 28px); }
 
-/* Movie cards: Netflix-style hover lift, info shows on hover */
+/* Movie cards */
 .card {
   transition: transform var(--dur-slow) var(--ease), box-shadow var(--dur-slow) var(--ease);
 }
@@ -55,17 +87,16 @@ h1, h2, h3 { font-weight: 800; letter-spacing: -0.01em; }
 .card:hover img { transform: none; }
 .card:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
+/* Title + year always visible (was hover-only, so the grid was a wall of posters) */
 .card-overlay {
-  opacity: 0;
-  transition: opacity var(--dur-fast) var(--ease);
+  opacity: 1;
+  padding: 28px 10px 10px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.92));
 }
-.card:hover .card-overlay,
-.card:focus-visible .card-overlay { opacity: 1; }
+.badge { font-size: 0.65rem; padding: 1px 6px; opacity: 0.95; }
 
-/* Touch screens have no hover: always show the title */
-@media (hover: none) {
-  .card-overlay { opacity: 1; }
-}
+/* Grid loading feedback */
+[aria-busy="true"] .grid { opacity: 0.5; transition: opacity var(--dur-fast) var(--ease); }
 
 /* Home sections */
 .home-section { padding-block: 32px; }
@@ -108,6 +139,7 @@ h1, h2, h3 { font-weight: 800; letter-spacing: -0.01em; }
 .tile:hover { transform: scale(1.03); }
 .tile:hover img { transform: scale(1.05); opacity: 0.7; }
 .tile:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
 /* Filter bar */
 .filters {
   display: flex;
@@ -124,6 +156,7 @@ h1, h2, h3 { font-weight: 800; letter-spacing: -0.01em; }
   color: var(--text-muted);
 }
 .filter select {
+  min-height: 36px;
   background: var(--surface-2);
   color: var(--text);
   border: 1px solid var(--surface-3);
@@ -133,24 +166,31 @@ h1, h2, h3 { font-weight: 800; letter-spacing: -0.01em; }
   cursor: pointer;
 }
 .filter select:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.filters-clear { min-height: 36px; padding: 6px 14px; font-size: 0.85rem; }
 
-/* Home tabs */
+/* Empty state */
+.empty-state { display: grid; justify-items: center; gap: 12px; padding: 48px 0; text-align: center; color: var(--text-muted); }
+
+/* Home tabs: only clear the header when they are the first thing on the page */
 .home-tabs {
   display: flex;
   gap: 24px;
-  padding-top: 96px;
+  padding-top: calc(var(--header-h) + 28px);
   padding-bottom: 0;
   border-bottom: 1px solid var(--surface-2);
   font-weight: 600;
 }
+.hero-slider + .home-tabs { padding-top: 24px; }   /* under the hero: no dead gap */
+.home-tabs + .browse { padding-top: 24px; }         /* under tabs: no double offset */
 .home-tab {
   display: inline-block;
-  padding-bottom: 12px;
+  padding-block: 8px 12px;
   color: var(--text-muted);
   transition: color var(--dur-fast) var(--ease);
 }
 .home-tab:hover { color: var(--text); }
 .home-tab.is-active { color: var(--text); box-shadow: inset 0 -3px 0 var(--accent); }
+
 /* Hero (Netflix-style full-bleed) */
 .hero-slider {
   position: relative;
@@ -162,6 +202,15 @@ h1, h2, h3 { font-weight: 800; letter-spacing: -0.01em; }
   align-items: flex-end;
   isolation: isolate;
   background: var(--bg);
+  touch-action: pan-y;
+}
+
+/* FIX: align with the page grid. Old rules (hero.css max-width:640 + width:100%)
+   centered it on desktop and removed gutters on mobile. */
+.hero-slider > .hero-content {
+  width: min(1280px, 100% - 32px);
+  max-width: none;
+  margin-inline: auto;
 }
 
 .hero-bg {
@@ -174,6 +223,11 @@ h1, h2, h3 { font-weight: 800; letter-spacing: -0.01em; }
   z-index: -2;
   animation: carousel-fade var(--dur-slow) var(--ease) both;
 }
+/* No real backdrop: show the portrait poster at its own ratio instead of a blurry crop */
+.hero-bg.is-poster {
+  object-fit: contain;
+  object-position: right 6% center;
+}
 
 .hero-slider::after {
   content: "";
@@ -184,8 +238,6 @@ h1, h2, h3 { font-weight: 800; letter-spacing: -0.01em; }
     linear-gradient(to top, var(--bg) 0%, rgba(11, 11, 16, 0.25) 45%, transparent 75%),
     linear-gradient(90deg, rgba(11, 11, 16, 0.95) 0%, rgba(11, 11, 16, 0.5) 45%, transparent 80%);
 }
-
-.hero-content { width: 100%; }
 
 .hero-copy {
   max-width: 580px;
@@ -255,34 +307,46 @@ h1, h2, h3 { font-weight: 800; letter-spacing: -0.01em; }
 .hero-slider:hover .hero-nav,
 .hero-nav:focus-visible { opacity: 1; }
 .hero-nav:hover { background: rgba(11, 11, 16, 0.8); }
-@media (hover: none) { .hero-nav { display: none; } }
+@media (hover: none) { .hero-nav { display: none; } } /* touch uses swipe + dots */
 
+/* Dots: 28x24 hit area around a 3px bar (WCAG 2.2 target size) */
 .hero-dots {
   position: absolute;
   right: 24px;
-  bottom: 28px;
+  bottom: 22px;
   z-index: 2;
   display: flex;
-  gap: 6px;
+  gap: 2px;
 }
 .hero-dot {
-  width: 24px;
-  height: 3px;
+  position: relative;
+  width: 28px;
+  height: 24px;
   border: 0;
-  border-radius: 2px;
-  background: var(--surface-3);
-  cursor: pointer;
   padding: 0;
+  background: none;
+  cursor: pointer;
 }
-.hero-dot.is-active { background: var(--text); }
+.hero-dot::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 50%;
+  height: 3px;
+  margin-top: -1.5px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.45);
+}
+.hero-dot.is-active::before { background: #fff; }
 
 .hero-pause {
   position: absolute;
   right: 24px;
   bottom: 64px;
   z-index: 2;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: 1px solid var(--text-muted);
   background: rgba(11, 11, 16, 0.5);
@@ -304,11 +368,15 @@ h1, h2, h3 { font-weight: 800; letter-spacing: -0.01em; }
 @media (max-width: 640px) {
   .hero-slider { height: 78vh; min-height: 440px; }
   .hero-copy { padding-bottom: 56px; }
-  .hero-pause { bottom: 56px; }
+  .hero-pause { bottom: 56px; right: 12px; }
+  .hero-dots { right: 12px; }
 }
+
 /* Mobile nav */
 .mnav-toggle {
   display: none;
+  min-width: 44px;
+  min-height: 44px;
   background: none;
   border: 0;
   color: var(--text);
@@ -334,9 +402,8 @@ h1, h2, h3 { font-weight: 800; letter-spacing: -0.01em; }
   z-index: 61;
   width: min(320px, 86vw);
   background: var(--surface);
-  padding: 96px 24px 24px;
+  padding: calc(var(--header-h) + 16px) 24px 24px;
   overflow-y: auto;
-  transform: translateX(0);
   animation: mnav-in var(--dur-slow) var(--ease) both;
   box-shadow: -12px 0 40px rgba(0, 0, 0, 0.5);
 }
@@ -364,13 +431,20 @@ h1, h2, h3 { font-weight: 800; letter-spacing: -0.01em; }
   to { transform: translateX(0); }
 }
 
-/* Responsive switch: desktop nav hides, mobile toggle shows */
 @media (max-width: 900px) {
   .nav-desktop { display: none; }
   .mnav-toggle { display: inline-grid; place-items: center; }
   .header-inner { gap: 8px; }
   .header-search .search { width: min(200px, 45vw); }
 }
+
+/* Mobile: search on its own full-width row (must come AFTER the 900px rule) */
+@media (max-width: 640px) {
+  .header-inner { flex-wrap: wrap; min-height: 0; padding: 8px 0; }
+  .header-search { flex: 1 1 100%; order: 3; margin-left: 0; }
+  .header-search .search { width: 100%; }
+}
+
 /* Movie page (Netflix-style) */
 .mv-hero {
   position: relative;
@@ -390,7 +464,8 @@ h1, h2, h3 { font-weight: 800; letter-spacing: -0.01em; }
     linear-gradient(to top, var(--bg) 0%, rgba(11, 11, 16, 0.3) 50%, transparent 80%),
     linear-gradient(90deg, rgba(11, 11, 16, 0.95) 0%, rgba(11, 11, 16, 0.55) 50%, transparent 85%);
 }
-.mv-hero-inner { width: 100%; padding-top: 96px; padding-bottom: 40px; }
+/* FIX: no width:100% here, so .container keeps its width + gutters */
+.mv-hero-inner { padding-top: calc(var(--header-h) + 28px); padding-bottom: 40px; }
 
 .mv-head {
   display: flex;
@@ -434,10 +509,11 @@ h1, h2, h3 { font-weight: 800; letter-spacing: -0.01em; }
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+  opacity: 1;
   transition: color var(--dur-fast) var(--ease);
 }
 .mv-tab:hover { color: var(--text); }
-.mv-tab.is-active { color: var(--text); box-shadow: inset 0 -3px 0 var(--accent); }
+.mv-tab.is-active { color: var(--text); box-shadow: inset 0 -3px 0 var(--accent); border-bottom-color: transparent; }
 .mv-tab:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
 .mv-section { margin-bottom: 40px; }
@@ -464,5 +540,7 @@ h1, h2, h3 { font-weight: 800; letter-spacing: -0.01em; }
 @media (max-width: 720px) {
   .mv-head { flex-direction: column; align-items: flex-start; gap: 20px; }
   .mv-poster { width: 160px; }
-  .mv-hero-inner { padding-top: 88px; }
 }
+
+/* Player: icon contrast on accent */
+.pl-bigplay { color: var(--on-accent); }

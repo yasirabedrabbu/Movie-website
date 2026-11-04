@@ -15,8 +15,8 @@ export default function HeaderSearch() {
         type="search"
         name="q"
         className="search"
-        placeholder="Titles, genres..."
-        aria-label="Search movies"
+        placeholder="Search titles"
+        aria-label="Search movies by title"
         defaultValue={q}
         maxLength={100}
         enterKeyHint="search"

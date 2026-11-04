@@ -93,7 +93,7 @@ export default function TrailerModal({ trailerKey, title, onClose }) {
           target="_blank"
           rel="noopener noreferrer"
         >
-          YouTube-e dekhun
+             Watch on YouTube
         </a>
       </div>
     </div>,

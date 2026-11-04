@@ -41,13 +41,15 @@ async function load() {
   return store;
 }
 
+export const proxyImg = (u) => (u ? `/api/img?u=${encodeURIComponent(u)}` : null);
+
 function toCard(m) {
   return {
     id: m.id,
     title: m.title,
     year: m.year,
     quality: m.quality,
-    poster: m.poster,
+    poster: proxyImg(m.poster),
     category: m.category,
     tmdbId: m.tmdbId ?? null,
   };
