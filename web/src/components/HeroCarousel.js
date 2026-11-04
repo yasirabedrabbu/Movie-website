@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import TrailerModal from "@/components/TrailerModal";
 import Icon from "@/components/Icon";
+import Link from "next/link";
 import {
   PlayIcon,
   PauseIcon,
@@ -99,13 +100,13 @@ export default function HeroCarousel({ slides }) {
                 Trailer
               </button>
             )}
-            <a
-              className={`btn ${slide.trailerKey ? "btn-ghost" : "btn-primary"}`}
-              href={slide.href}
-            >
-              <Icon icon={PlayCircleIcon} size={20} />
-              Details
-            </a>
+           <Link
+  className={`btn ${slide.trailerKey ? "btn-ghost" : "btn-primary"}`}
+  href={slide.href}
+>
+  <Icon icon={PlayCircleIcon} size={20} />
+  Details
+</Link>
           </div>
         </div>
       </div>

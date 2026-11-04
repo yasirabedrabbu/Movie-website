@@ -28,7 +28,6 @@ const safe = (s) => {
 };
 const slug = (s) => String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 const extOf = (u) => (u || "").split("?")[0].split(".").pop().toLowerCase();
-const runtimeText = (m) => (m ? `${Math.floor(m / 60)}h ${m % 60}m` : null);
 const money = (n) =>
   n
     ? new Intl.NumberFormat("en-US", {
@@ -37,6 +36,12 @@ const money = (n) =>
         maximumFractionDigits: 0,
       }).format(n)
     : null;
+const runtimeText = (m) => {
+  if (!m) return null;
+  const h = Math.floor(m / 60);
+  const min = m % 60;
+  return h ? `${h}h ${min}m` : `${min}m`;
+};
 
 function getVersions(movie) {
   if (movie.versions?.length) return movie.versions;

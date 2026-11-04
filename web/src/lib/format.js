@@ -8,3 +8,8 @@ export function formatSize(bytes) {
 export function formatYear(year) {
   return year ? String(year) : "—";
 }
+export const slugify = (s) =>
+  String(s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");

@@ -1,10 +1,11 @@
-import { Suspense } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import HeroCarousel from "@/components/HeroCarousel";
 import BrowseSection from "@/components/BrowseSection";
-import { listMovies, getCategories } from "@/lib/movies";
+import MovieRow from "@/components/MovieRow";
+import { listMovies, getCategories, getHomeRows } from "@/lib/movies";
 import { getMovieMedia } from "@/lib/tmdb";
+import { Suspense } from "react";
 
 const SLIDE_COUNT = 6;
 
@@ -35,16 +36,23 @@ async function HomeContent({ searchParams }) {
   const sp = await searchParams;
   const q = String(sp?.q ?? "").trim().slice(0, 100);
 
-  const [slides, initial, categories] = await Promise.all([
-    q ? Promise.resolve([]) : buildSlides(),
-    listMovies({ query: q }),
-    getCategories(),
-  ]);
+  if (q) {
+    // Search mode: puro grid + category chips.
+    const [initial, categories] = await Promise.all([
+      listMovies({ query: q }),
+      getCategories(),
+    ]);
+    return <BrowseSection key={q} initial={initial} categories={categories} query={q} />;
+  }
 
+  // Home mode: hero + categorized rows.
+  const [slides, rows] = await Promise.all([buildSlides(), getHomeRows()]);
   return (
     <>
-      {!q && <HeroCarousel slides={slides} />}
-      <BrowseSection key={q} initial={initial} categories={categories} query={q} />
+      <HeroCarousel slides={slides} />
+      {rows.map((row) => (
+        <MovieRow key={row.id} row={row} />
+      ))}
     </>
   );
 }

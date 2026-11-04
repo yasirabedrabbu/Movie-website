@@ -229,6 +229,43 @@ function carryOver(previous, urls) {
   return out;
 }
 
+// ---- CHANGED: audio language + version label helpers ----------------------
+
+const LANG_CODES = {
+  hindi: "hin", telugu: "tel", tamil: "tam", malayalam: "mal",
+  kannada: "kan", bengali: "ben", bangla: "ben", english: "eng", urdu: "urd",
+};
+const LANG_NAMES = {
+  hin: "Hindi", tel: "Telugu", tam: "Tamil", mal: "Malayalam",
+  kan: "Kannada", ben: "Bengali", eng: "English", urd: "Urdu",
+};
+
+function fileName(url) {
+  const last = String(url || "").split("/").pop() || "";
+  try { return decodeURIComponent(last); } catch { return last; }
+}
+
+function versionInfo(e) {
+  const name = fileName(e.files?.[0]?.url);
+  const audioLangs = [];
+  for (const [word, code] of Object.entries(LANG_CODES)) {
+    if (new RegExp(`\\b${word}\\b`, "i").test(name) && !audioLangs.includes(code)) {
+      audioLangs.push(code);
+    }
+  }
+  const source = name.match(/\b(BluRay|BRRip|WEB-?DL|WEBRip|HDRip|DVDRip)\b/i)?.[1] || null;
+  const uncut = /\bUNCUT\b/i.test(name) ? "Uncut" : null;
+  const audioText =
+    audioLangs.length > 0
+      ? audioLangs.map((c) => LANG_NAMES[c]).join(" + ")
+      : /dual audio/i.test(name) ? "Dual Audio" : null;
+
+  const label = [e.quality, source, audioText, uncut].filter(Boolean).join(" · ") || "HD";
+  return { audioLangs, label };
+}
+
+// ---- CHANGED: groupMovies ------------------------------------------------
+
 function groupMovies(entries) {
   const groups = new Map();
   let duplicates = 0;
@@ -237,13 +274,18 @@ function groupMovies(entries) {
     const key = `${e.title.toLowerCase()}|${e.year}`;
     if (!groups.has(key)) groups.set(key, { key, title: e.title, year: e.year, versions: [] });
     const g = groups.get(key);
-    const dupe = g.versions.some((v) => v.path === e.path || (e.quality && v.quality === e.quality));
-    if (dupe) { duplicates++; continue; }
-    g.versions.push(e);
+    // Dupe = same folder only. Same quality but different language is a separate version.
+    if (g.versions.some((v) => v.path === e.path)) { duplicates++; continue; }
+    g.versions.push({ ...e, ...versionInfo(e) });
   }
 
   const movies = [...groups.values()].map((g) => {
-    const versions = g.versions.sort((a, b) => (RANK[b.quality] || 0) - (RANK[a.quality] || 0));
+    // More audio languages first (Dual Audio), then higher quality.
+    const versions = g.versions.sort(
+      (a, b) =>
+        b.audioLangs.length - a.audioLangs.length ||
+        (RANK[b.quality] || 0) - (RANK[a.quality] || 0)
+    );
     const primary = versions[0];
     return {
       id: hash(g.key),
@@ -260,9 +302,12 @@ function groupMovies(entries) {
       poster: versions.find((v) => v.poster)?.poster || null,
       size: null,
       modified: null,
-      qualities: versions.map((v) => v.quality).filter(Boolean),
+      qualities: [...new Set(versions.map((v) => v.quality).filter(Boolean))],
+      audioLangs: [...new Set(versions.flatMap((v) => v.audioLangs))],
       versions: versions.map((v) => ({
         quality: v.quality,
+        label: v.label,
+        audioLangs: v.audioLangs,
         category: v.category,
         folder: v.folder,
         path: v.path,
@@ -276,6 +321,8 @@ function groupMovies(entries) {
 
   return { movies, duplicates };
 }
+
+// --------------------------------------------------------------------------
 
 async function fillSizes(movies, cache) {
   const files = movies.flatMap((m) => m.versions.flatMap((v) => v.files));

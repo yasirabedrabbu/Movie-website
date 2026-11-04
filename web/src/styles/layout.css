@@ -41,3 +41,11 @@
   margin-bottom: 8px;
   overflow-wrap: anywhere;
 }
+.nav {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.nav a { white-space: nowrap; opacity: 0.8; }
+.nav a:hover { opacity: 1; }

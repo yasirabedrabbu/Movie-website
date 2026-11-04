@@ -101,11 +101,25 @@ function parseVtt(text) {
   return cues.sort((a, b) => a.start - b.start);
 }
 
-function activeHtml(cues, t) {
+// Binary search: last cue that started at or before t, then walk back only
+// as far as the longest cue could still be on screen. O(log n) instead of O(n).
+function activeHtml(cues, maxLen, t) {
+  let lo = 0;
+  let hi = cues.length - 1;
+  let idx = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (cues[mid].start <= t) {
+      idx = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
   let out = "";
-  for (const c of cues) {
-    if (c.start > t) break;
-    if (t < c.end) out += (out ? "<br/>" : "") + c.html;
+  for (let i = idx; i >= 0 && cues[i].start > t - maxLen; i--) {
+    const c = cues[i];
+    if (t < c.end) out = c.html + (out ? `<br/>${out}` : "");
   }
   return out;
 }
@@ -126,7 +140,7 @@ function fileName(url) {
 }
 // ---------- end helpers ----------
 
-export default function Player({ src, title, subtitles = NO_SUBS }) {
+export default function Player({ src, title, subtitles = NO_SUBS, preferredLang = null }) {
   const wrapRef = useRef(null);
   const videoRef = useRef(null);
   const hideTimer = useRef(null);
@@ -164,10 +178,14 @@ export default function Player({ src, title, subtitles = NO_SUBS }) {
   const [subDelay, setSubDelay] = useState(0);
   const [subHtml, setSubHtml] = useState("");
 
-  // Depend on the *content* of the subtitle list, not its identity,
-  // so an inline array from the parent can't retrigger effects every render.
+  // Depend on the *content* of the subtitle list, not its identity.
   const subKey = (subtitles || NO_SUBS).join("\n");
   const externalSubs = useMemo(() => (subKey ? subKey.split("\n") : NO_SUBS), [subKey]);
+
+  const maxCueLen = useMemo(
+    () => cues.reduce((m, c) => Math.max(m, c.end - c.start), 0),
+    [cues]
+  );
 
   // 1. Ask the media server what is inside the file.
   useEffect(() => {
@@ -204,7 +222,7 @@ export default function Player({ src, title, subtitles = NO_SUBS }) {
       })
       .catch((err) => {
         if (err.name === "AbortError") return;
-        // Media server is off: try the raw file like a normal <video>.
+        // Media server is off: play the raw file like a normal <video>.
         setNoServer(true);
         setDirect(true);
         setStatus("ready");
@@ -233,8 +251,6 @@ export default function Player({ src, title, subtitles = NO_SUBS }) {
 
   // 2. Load the chosen subtitle track.
   useEffect(() => {
-    // Functional updates return the same value when nothing changes,
-    // so React bails out instead of re-rendering.
     const resetCues = () => setCues((c) => (c.length ? NO_CUES : c));
     const clearError = () => setSubError((e) => (e ? "" : e));
 
@@ -296,13 +312,14 @@ export default function Player({ src, title, subtitles = NO_SUBS }) {
       setSubHtml("");
       return;
     }
-    setSubHtml(activeHtml(cues, (direct ? 0 : offset) + v.currentTime - subDelay));
-  }, [cues, direct, offset, subDelay]);
+    setSubHtml(activeHtml(cues, maxCueLen, (direct ? 0 : offset) + v.currentTime - subDelay));
+  }, [cues, maxCueLen, direct, offset, subDelay]);
 
   useEffect(() => {
     computeSub();
   }, [computeSub, time]);
 
+  // Smooth updates between timeupdate events, only while playing.
   useEffect(() => {
     if (!playing || !cues.length) return;
     let id = requestAnimationFrame(function loop() {
@@ -417,6 +434,14 @@ export default function Player({ src, title, subtitles = NO_SUBS }) {
     setPlaying(false);
     setMenu(null);
   };
+
+  // Parent language select: switch to the matching audio track.
+  useEffect(() => {
+    if (!info?.audio?.length || !preferredLang) return;
+    const idx = info.audio.findIndex((a) => a.lang === preferredLang);
+    if (idx >= 0 && idx !== audio) changeAudio(idx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preferredLang, info]);
 
   const pickSub = (id) => {
     setSubId(id);
@@ -568,6 +593,12 @@ export default function Player({ src, title, subtitles = NO_SUBS }) {
         </div>
       )}
 
+      {noServer && status === "ready" && (
+        <div className="pl-chip" role="status">
+          Media server chalu nei, tai CC ar Audio paoa jabe na. Terminal e: node media-server/server.mjs
+        </div>
+      )}
+
       {(waiting || status === "loading") && <div className="pl-spinner" aria-label="Loading" />}
 
       {!playing && !waiting && status === "ready" && (
@@ -587,6 +618,7 @@ export default function Player({ src, title, subtitles = NO_SUBS }) {
           style={{ "--played": `${playedPct}%`, "--buf": `${bufPct}%` }}
           onChange={(e) => setPreview(Number(e.target.value))}
           onPointerUp={commitSeek}
+          onKeyUp={commitSeek}
           onBlur={commitSeek}
           aria-label="Seek"
         />

@@ -1,37 +1,40 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 
 export default function TrailerModal({ trailerKey, title, onClose }) {
   const closeBtnRef = useRef(null);
   const modalBodyRef = useRef(null);
-  const previouslyFocusedRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+
+  // Latest onClose ref e rakha, effect er dependency te na.
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!trailerKey) return;
 
-    previouslyFocusedRef.current = document.activeElement;
+    const previouslyFocused = document.activeElement;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     closeBtnRef.current?.focus();
 
     const getFocusable = () =>
       modalBodyRef.current
-        ? Array.from(
-            modalBodyRef.current.querySelectorAll(
-              'button, [href], input, select, textarea, iframe, [tabindex]:not([tabindex="-1"])'
-            )
-          )
+        ? Array.from(modalBodyRef.current.querySelectorAll("button, a[href], iframe"))
         : [];
 
     const onKey = (e) => {
       if (e.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== "Tab") return;
 
       const focusable = getFocusable();
       if (!focusable.length) return;
-
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
 
@@ -47,26 +50,32 @@ export default function TrailerModal({ trailerKey, title, onClose }) {
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
-      previouslyFocusedRef.current?.focus?.();
+      document.body.style.overflow = prevOverflow;
+      previouslyFocused?.focus?.();
     };
-  }, [trailerKey, onClose]);
+  }, [trailerKey]);
 
   if (!trailerKey) return null;
 
-  return (
+  // body te portal: parent er overflow/stacking context modal ke aatkabe na.
+  return createPortal(
     <div
       className="modal-backdrop"
       role="dialog"
       aria-modal="true"
       aria-label={`${title} trailer`}
-      onClick={onClose}
+      onClick={() => onCloseRef.current()}
     >
-      <div className="modal-body" ref={modalBodyRef} onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal-body"
+        ref={modalBodyRef}
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
           type="button"
           ref={closeBtnRef}
           className="btn btn-ghost modal-close"
-          onClick={onClose}
+          onClick={() => onCloseRef.current()}
           aria-label="Close trailer"
         >
           ✕ Close
@@ -78,7 +87,16 @@ export default function TrailerModal({ trailerKey, title, onClose }) {
           allow="autoplay; encrypted-media; picture-in-picture"
           allowFullScreen
         />
+        <a
+          className="btn btn-ghost"
+          href={`https://www.youtube.com/watch?v=${trailerKey}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          YouTube-e dekhun
+        </a>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

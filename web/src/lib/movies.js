@@ -27,11 +27,16 @@ async function load() {
   if (store?.mtimeMs === mtimeMs) return store;
   const data = JSON.parse(await readFile(FILE, "utf8"));
   const movies = data.movies.map((m) => ({ ...m, _search: normalize(m.title) }));
+  const byNew = (a, b) =>
+  (b.modified || "").localeCompare(a.modified || "") || (b.year || 0) - (a.year || 0);
+
+// ...load() er vitore:
   store = {
     mtimeMs,
     movies,
     byId: new Map(movies.map((m) => [m.id, m])),
     categories: [...new Set(movies.map((m) => m.category))],
+    newest: [...movies].sort(byNew), // ekbar sort, tarpor cache
   };
   return store;
 }
@@ -99,4 +104,24 @@ export async function findMovie(id) {
 export async function getCategories() {
   const { categories } = await load();
   return categories;
+}
+import { slugify } from "./format";
+
+export async function getHomeRows(perRow = 20) {
+  const { newest, categories } = await load();
+
+  const recent = newest.slice(0, perRow).map(toCard);
+  const byCat = new Map(categories.map((c) => [c, []]));
+
+  // Ek loop e sob category er newest movie gulo jog kori.
+  for (const m of newest) {
+    const list = byCat.get(m.category);
+    if (list && list.length < perRow) list.push(toCard(m));
+  }
+
+  const rows = [{ id: "recent", title: "Recently added", movies: recent }];
+  for (const c of categories) {
+    rows.push({ id: slugify(c), title: c, movies: byCat.get(c) });
+  }
+  return rows.filter((r) => r.movies.length > 0);
 }
