@@ -5,12 +5,13 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Icon from "@/components/Icon";
 import MovieGrid from "@/components/MovieGrid";
+import ShareButton from "@/components/ShareButton";
 import Player from "./Player";
+import Tabs from "./Tabs";
 import { findMovie, listMovies } from "@/lib/movies";
 import { findTmdbId, getMovieDetails } from "@/lib/tmdb";
 import { getImdbRating } from "@/lib/omdb";
 import { formatSize, formatYear } from "@/lib/format";
-import { SITE_NAME } from "@/lib/constants";
 import {
   ArrowLeft01Icon,
   Download01Icon,
@@ -85,14 +86,41 @@ async function matchRelated(similar, selfId) {
 export async function generateMetadata({ params }) {
   const { id } = await params;
   const movie = await findMovie(id);
-  if (!movie) return { title: `Movie not found | ${SITE_NAME}` };
-  const label = movie.year ? `${movie.title} (${movie.year})` : movie.title;
+  if (!movie) return { title: "Movie not found" };
+
+  const tmdbId = movie.tmdbId ?? (await findTmdbId(movie.title, movie.year));
+  const d = await getMovieDetails(tmdbId);
+
+  const name = d?.title || movie.title;
+  const label = movie.year ? `${name} (${movie.year})` : name;
   const qualities = movie.qualities?.length ? movie.qualities.join(", ") : movie.quality;
-  const description = `Watch or download ${movie.title}${qualities ? ` in ${qualities}` : ""}.`;
+  const fallback = `Watch or download ${name}${qualities ? ` in ${qualities}` : ""}.`;
+  const description = d?.overview
+    ? d.overview.length > 180
+      ? `${d.overview.slice(0, 177)}...`
+      : d.overview
+    : fallback;
+
+  const image = d?.backdrop || d?.poster || movie.poster || null;
+  const images = image ? [{ url: image, alt: `${name} poster` }] : undefined;
+
   return {
-    title: `${label} | ${SITE_NAME}`,
+    title: label,
     description,
-    openGraph: { title: `${label} | ${SITE_NAME}`, description, type: "video.movie" },
+    alternates: { canonical: `/movie/${id}` },
+    openGraph: {
+      title: label,
+      description,
+      type: "video.movie",
+      url: `/movie/${id}`,
+      images,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: label,
+      description,
+      images: image ? [image] : undefined,
+    },
   };
 }
 
@@ -183,6 +211,70 @@ async function MovieContent({ params }) {
     ["Category", movie.category],
   ].filter(([, v]) => v);
 
+  const tabs = [
+    {
+      id: "overview",
+      label: "Overview",
+      content: d?.overview && (
+        <>
+          <p className="mv-overview">{d.overview}</p>
+          {d.crew.length > 0 && (
+            <ul className="mv-crew">
+              {d.crew.map((c) => (
+                <li key={`${c.id}-${c.job}`}>
+                  <span>{c.job}</span>
+                  <Link href={`/person/${c.id}`}>{c.name}</Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      ),
+    },
+    {
+      id: "cast",
+      label: "Cast",
+      content: d?.cast.length > 0 && (
+        <ul className="mv-cast">
+          {d.cast.map((p) => (
+            <li key={p.id}>
+              <Link href={`/person/${p.id}`}>
+                {p.photo ? (
+                  <img src={p.photo} alt="" loading="lazy" width="185" height="278" />
+                ) : (
+                  <div className="mv-cast-fallback" aria-hidden="true">
+                    {[...p.name][0]}
+                  </div>
+                )}
+                <strong>{p.name}</strong>
+                {p.character && <span>{p.character}</span>}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ),
+    },
+    {
+      id: "details",
+      label: "Details",
+      content: facts.length > 0 && (
+        <dl className="mv-details">
+          {facts.map(([k, v]) => (
+            <div key={k}>
+              <dt>{k}</dt>
+              <dd>{v}</dd>
+            </div>
+          ))}
+        </dl>
+      ),
+    },
+    {
+      id: "related",
+      label: "More like this",
+      content: related.length > 0 && <MovieGrid movies={related} />,
+    },
+  ];
+
   return (
     <div className="mv">
       <section className="mv-hero" aria-labelledby="mv-title">
@@ -240,6 +332,7 @@ async function MovieContent({ params }) {
                   <Icon icon={Download01Icon} size={20} />
                   Download
                 </a>
+                <ShareButton title={title} text={`Watch ${title}`} />
                 {vlcSrc && (
                   <a className="btn btn-ghost" href={`vlc://${vlcSrc}`}>
                     Open in VLC
@@ -267,61 +360,7 @@ async function MovieContent({ params }) {
           <Player src={playSrc} title={title} />
         </section>
 
-        {d?.overview && (
-          <section className="mv-section" aria-labelledby="mv-overview">
-            <h2 id="mv-overview">Overview</h2>
-            <p className="mv-overview">{d.overview}</p>
-          </section>
-        )}
-
-        {d?.cast.length > 0 && (
-          <section className="mv-section" aria-labelledby="mv-cast">
-            <h2 id="mv-cast">Cast</h2>
-            <ul className="mv-cast">
-              {d.cast.map((p) => (
-                <li key={p.id}>
-                  {p.photo ? (
-                    <img src={p.photo} alt="" loading="lazy" width="185" height="278" />
-                  ) : (
-                    <div className="mv-cast-fallback" aria-hidden="true">
-                      {[...p.name][0]}
-                    </div>
-                  )}
-                  <strong>{p.name}</strong>
-                  {p.character && <span>{p.character}</span>}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {d?.crew.length > 0 && (
-          <section className="mv-section" aria-labelledby="mv-crew">
-            <h2 id="mv-crew">Crew</h2>
-            <ul className="mv-crew">
-              {d.crew.map((c) => (
-                <li key={`${c.id}-${c.job}`}>
-                  <span>{c.job}</span>
-                  {c.name}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {facts.length > 0 && (
-          <section className="mv-section" aria-labelledby="mv-details">
-            <h2 id="mv-details">Details</h2>
-            <dl className="mv-details">
-              {facts.map(([k, v]) => (
-                <div key={k}>
-                  <dt>{k}</dt>
-                  <dd>{v}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-        )}
+        <Tabs tabs={tabs} />
 
         <section className="mv-section" id="files" aria-labelledby="mv-files">
           <h2 id="mv-files">Available versions</h2>
@@ -350,13 +389,6 @@ async function MovieContent({ params }) {
             ))}
           </ul>
         </section>
-
-        {related.length > 0 && (
-          <section className="mv-section" aria-labelledby="mv-related">
-            <h2 id="mv-related">More like this</h2>
-            <MovieGrid movies={related} />
-          </section>
-        )}
       </div>
     </div>
   );

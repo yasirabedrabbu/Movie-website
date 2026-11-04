@@ -188,3 +188,42 @@ export async function getMovieDetails(tmdbId) {
     })),
   };
 }
+export async function getPerson(personId) {
+  if (!personId) return null;
+
+  const p = await tmdb(`/person/${personId}`, {
+    append_to_response: "movie_credits",
+  });
+  if (!p) return null;
+
+  const cast = (p.movie_credits?.cast || []).map((c) => ({
+    id: c.id,
+    title: c.title,
+    year: releaseYear(c),
+    role: c.character || "",
+    popularity: c.popularity || 0,
+  }));
+
+  const directed = (p.movie_credits?.crew || [])
+    .filter((c) => c.job === "Director")
+    .map((c) => ({
+      id: c.id,
+      title: c.title,
+      year: releaseYear(c),
+      role: "Director",
+      popularity: c.popularity || 0,
+    }));
+
+  return {
+    id: p.id,
+    name: p.name,
+    photo: tmdbImage(p.profile_path, "h632"),
+    biography: p.biography || "",
+    birthday: p.birthday || null,
+    deathday: p.deathday || null,
+    birthplace: p.place_of_birth || null,
+    department: p.known_for_department || null,
+    cast,
+    directed,
+  };
+}
