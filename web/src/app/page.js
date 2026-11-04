@@ -1,11 +1,12 @@
+import { Suspense } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import HeroCarousel from "@/components/HeroCarousel";
 import BrowseSection from "@/components/BrowseSection";
-import MovieRow from "@/components/MovieRow";
-import { listMovies, getCategories, getHomeRows } from "@/lib/movies";
+import CategoryTiles from "@/components/CategoryTiles";
+import MovieGrid from "@/components/MovieGrid";
+import { listMovies, getCategories, getCategoryTiles } from "@/lib/movies";
 import { getMovieMedia } from "@/lib/tmdb";
-import { Suspense } from "react";
 
 const SLIDE_COUNT = 6;
 
@@ -37,22 +38,32 @@ async function HomeContent({ searchParams }) {
   const q = String(sp?.q ?? "").trim().slice(0, 100);
 
   if (q) {
-    // Search mode: puro grid + category chips.
     const [initial, categories] = await Promise.all([
-      listMovies({ query: q }),
+      listMovies({ query: q, sort: "new" }),
       getCategories(),
     ]);
     return <BrowseSection key={q} initial={initial} categories={categories} query={q} />;
   }
 
-  // Home mode: hero + categorized rows.
-  const [slides, rows] = await Promise.all([buildSlides(), getHomeRows()]);
+  const [slides, tiles, recent] = await Promise.all([
+    buildSlides(),
+    getCategoryTiles(),
+    listMovies({ pageSize: 24, sort: "new" }),
+  ]);
+
   return (
     <>
       <HeroCarousel slides={slides} />
-      {rows.map((row) => (
-        <MovieRow key={row.id} row={row} />
-      ))}
+
+      <section className="container home-section" aria-labelledby="browse-cats">
+        <h2 id="browse-cats" className="row-title">Browse by category</h2>
+        <CategoryTiles tiles={tiles} />
+      </section>
+
+      <section className="container home-section" aria-labelledby="recent">
+        <h2 id="recent" className="row-title">Recently added</h2>
+        <MovieGrid movies={recent.movies} />
+      </section>
     </>
   );
 }

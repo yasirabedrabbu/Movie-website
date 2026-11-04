@@ -125,3 +125,15 @@ export async function getHomeRows(perRow = 20) {
   }
   return rows.filter((r) => r.movies.length > 0);
 }
+export async function getCategoryTiles() {
+  const { newest, categories } = await load();
+  return categories.map((name) => {
+    const list = newest.filter((m) => m.category === name);
+    return {
+      slug: slugify(name),
+      name,
+      count: list.length,
+      poster: list.find((m) => m.poster)?.poster ?? null,
+    };
+  });
+}

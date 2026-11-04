@@ -7,9 +7,9 @@ export default async function CategoryNav() {
 
   return (
     <nav className="nav" aria-label="Categories">
-      <Link href="/#recent">Latest</Link>
+      <Link href="/">Home</Link>
       {categories.map((c) => (
-        <Link key={c} href={`/#${slugify(c)}`}>
+        <Link key={c} href={`/category/${slugify(c)}`}>
           {c}
         </Link>
       ))}

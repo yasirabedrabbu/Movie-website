@@ -6,7 +6,7 @@ import MovieGrid from "@/components/MovieGrid";
 import useGsapReveal from "@/components/motion/useGsapReveal";
 
 async function fetchPage({ category, query, page }) {
-  const qs = new URLSearchParams({ page: String(page) });
+  const qs = new URLSearchParams({ page: String(page), sort: "new" });
   if (category !== "All") qs.set("category", category);
   if (query) qs.set("q", query);
   const res = await fetch(`/api/movies?${qs}`);
@@ -14,8 +14,14 @@ async function fetchPage({ category, query, page }) {
   return res.json();
 }
 
-export default function BrowseSection({ initial, categories, query = "" }) {
-  const [category, setCategory] = useState("All");
+export default function BrowseSection({
+  initial,
+  categories,
+  query = "",
+  initialCategory = "All",
+  showChips = true,
+}) {
+  const [category, setCategory] = useState(initialCategory);
   const [items, setItems] = useState(initial.movies);
   const [total, setTotal] = useState(initial.total);
   const [page, setPage] = useState(initial.page);
@@ -80,7 +86,9 @@ export default function BrowseSection({ initial, categories, query = "" }) {
           Results for &ldquo;{query}&rdquo;
         </h1>
       )}
-      <CategoryChips categories={categories} active={category} onChange={setCategory} />
+      {showChips && (
+        <CategoryChips categories={categories} active={category} onChange={setCategory} />
+      )}
       <p className="card-meta" aria-live="polite">
         {total} results
       </p>
