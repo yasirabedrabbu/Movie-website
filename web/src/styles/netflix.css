@@ -108,3 +108,46 @@ h1, h2, h3 { font-weight: 800; letter-spacing: -0.01em; }
 .tile:hover { transform: scale(1.03); }
 .tile:hover img { transform: scale(1.05); opacity: 0.7; }
 .tile:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+/* Filter bar */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: center;
+  margin: 12px 0 16px;
+}
+.filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.filter select {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--surface-3);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+.filter select:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+/* Home tabs */
+.home-tabs {
+  display: flex;
+  gap: 24px;
+  padding-top: 96px;
+  padding-bottom: 0;
+  border-bottom: 1px solid var(--surface-2);
+  font-weight: 600;
+}
+.home-tab {
+  display: inline-block;
+  padding-bottom: 12px;
+  color: var(--text-muted);
+  transition: color var(--dur-fast) var(--ease);
+}
+.home-tab:hover { color: var(--text); }
+.home-tab.is-active { color: var(--text); box-shadow: inset 0 -3px 0 var(--accent); }

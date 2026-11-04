@@ -59,6 +59,9 @@ export async function listMovies({
   page = 1,
   pageSize = PAGE_SIZE,
   sort = "default",
+  quality = "All",
+  lang = "All",
+  decade = "All",
 } = {}) {
   const { movies } = await load();
   const tokens = normalize(query).split(" ").filter(Boolean);
@@ -67,6 +70,14 @@ export async function listMovies({
 
   let list = movies;
   if (category !== "All") list = list.filter((m) => m.category === category);
+  if (quality !== "All") {
+    list = list.filter((m) => m.qualities?.includes(quality) || m.quality === quality);
+  }
+  if (lang !== "All") list = list.filter((m) => m.audioLangs?.includes(lang));
+  if (decade !== "All") {
+    const start = Number(decade);
+    list = list.filter((m) => m.year && m.year >= start && m.year < start + 10);
+  }
   if (tokens.length) list = list.filter((m) => tokens.every((t) => m._search.includes(t)));
 
   const cmp = SORTS[sort];

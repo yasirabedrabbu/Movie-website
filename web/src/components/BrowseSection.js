@@ -2,13 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import CategoryChips from "@/components/CategoryChips";
+import FilterBar from "@/components/FilterBar";
 import MovieGrid from "@/components/MovieGrid";
 import useGsapReveal from "@/components/motion/useGsapReveal";
 
-async function fetchPage({ category, query, page }) {
-  const qs = new URLSearchParams({ page: String(page), sort: "new" });
+const DEFAULT_FILTERS = { sort: "new", quality: "All", lang: "All", decade: "All" };
+
+async function fetchPage({ category, query, page, filters }) {
+  const qs = new URLSearchParams({ page: String(page) });
   if (category !== "All") qs.set("category", category);
   if (query) qs.set("q", query);
+  for (const [k, v] of Object.entries(filters)) {
+    if (v !== "All") qs.set(k, v);
+  }
   const res = await fetch(`/api/movies?${qs}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
@@ -22,6 +28,7 @@ export default function BrowseSection({
   showChips = true,
 }) {
   const [category, setCategory] = useState(initialCategory);
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [items, setItems] = useState(initial.movies);
   const [total, setTotal] = useState(initial.total);
   const [page, setPage] = useState(initial.page);
@@ -40,7 +47,7 @@ export default function BrowseSection({
     const id = ++requestId.current;
     setLoading(true);
     setError(false);
-    fetchPage({ category, query, page: 1 })
+    fetchPage({ category, query, page: 1, filters })
       .then((r) => {
         if (id !== requestId.current) return;
         setItems(r.movies);
@@ -55,13 +62,14 @@ export default function BrowseSection({
       .finally(() => {
         if (id === requestId.current) setLoading(false);
       });
-  }, [category, query]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category, query, filters]);
 
   const loadMore = () => {
     const id = requestId.current;
     setLoading(true);
     setError(false);
-    fetchPage({ category, query, page: page + 1 })
+    fetchPage({ category, query, page: page + 1, filters })
       .then((r) => {
         if (id !== requestId.current) return;
         setItems((prev) => [...prev, ...r.movies]);
@@ -89,6 +97,7 @@ export default function BrowseSection({
       {showChips && (
         <CategoryChips categories={categories} active={category} onChange={setCategory} />
       )}
+      <FilterBar value={filters} onChange={setFilters} />
       <p className="card-meta" aria-live="polite">
         {total} results
       </p>

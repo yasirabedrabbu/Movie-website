@@ -9,6 +9,9 @@ export async function GET(request) {
       query: (params.get("q") || "").slice(0, 100),
       page: Number(params.get("page")) || 1,
       sort: params.get("sort") || "default",
+      quality: params.get("quality") || "All",
+      lang: params.get("lang") || "All",
+      decade: params.get("decade") || "All",
     });
     return NextResponse.json(result, {
       headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
