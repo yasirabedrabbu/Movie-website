@@ -31,28 +31,31 @@ async function buildSlides() {
   );
 }
 
-async function HomeContent() {
+async function HomeContent({ searchParams }) {
+  const sp = await searchParams;
+  const q = String(sp?.q ?? "").trim().slice(0, 100);
+
   const [slides, initial, categories] = await Promise.all([
-    buildSlides(),
-    listMovies(),
+    q ? Promise.resolve([]) : buildSlides(),
+    listMovies({ query: q }),
     getCategories(),
   ]);
 
   return (
     <>
-      <HeroCarousel slides={slides} />
-      <BrowseSection initial={initial} categories={categories} />
+      {!q && <HeroCarousel slides={slides} />}
+      <BrowseSection key={q} initial={initial} categories={categories} query={q} />
     </>
   );
 }
 
-export default function Home() {
+export default function Home({ searchParams }) {
   return (
     <>
       <Header />
       <main>
         <Suspense fallback={<div className="carousel skeleton" aria-busy="true" />}>
-          <HomeContent />
+          <HomeContent searchParams={searchParams} />
         </Suspense>
       </main>
       <Footer />

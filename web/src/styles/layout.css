@@ -24,3 +24,20 @@
 .logo span {
   color: var(--accent);
 }
+.header-search {
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.header-search .search {
+  width: min(420px, 100%);
+}
+
+.browse-title {
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  font-weight: 800;
+  margin-bottom: 8px;
+  overflow-wrap: anywhere;
+}

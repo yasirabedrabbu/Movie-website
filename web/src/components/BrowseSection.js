@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import CategoryChips from "@/components/CategoryChips";
-import SearchBox from "@/components/SearchBox";
 import MovieGrid from "@/components/MovieGrid";
 import useGsapReveal from "@/components/motion/useGsapReveal";
 
@@ -15,10 +14,8 @@ async function fetchPage({ category, query, page }) {
   return res.json();
 }
 
-export default function BrowseSection({ initial, categories }) {
+export default function BrowseSection({ initial, categories, query = "" }) {
   const [category, setCategory] = useState("All");
-  const [query, setQuery] = useState("");
-  const [debounced, setDebounced] = useState("");
   const [items, setItems] = useState(initial.movies);
   const [total, setTotal] = useState(initial.total);
   const [page, setPage] = useState(initial.page);
@@ -30,11 +27,6 @@ export default function BrowseSection({ initial, categories }) {
   const skipFirst = useRef(true);
 
   useEffect(() => {
-    const t = setTimeout(() => setDebounced(query.trim()), 300);
-    return () => clearTimeout(t);
-  }, [query]);
-
-  useEffect(() => {
     if (skipFirst.current) {
       skipFirst.current = false;
       return;
@@ -42,7 +34,7 @@ export default function BrowseSection({ initial, categories }) {
     const id = ++requestId.current;
     setLoading(true);
     setError(false);
-    fetchPage({ category, query: debounced, page: 1 })
+    fetchPage({ category, query, page: 1 })
       .then((r) => {
         if (id !== requestId.current) return;
         setItems(r.movies);
@@ -57,13 +49,13 @@ export default function BrowseSection({ initial, categories }) {
       .finally(() => {
         if (id === requestId.current) setLoading(false);
       });
-  }, [category, debounced]);
+  }, [category, query]);
 
   const loadMore = () => {
     const id = requestId.current;
     setLoading(true);
     setError(false);
-    fetchPage({ category, query: debounced, page: page + 1 })
+    fetchPage({ category, query, page: page + 1 })
       .then((r) => {
         if (id !== requestId.current) return;
         setItems((prev) => [...prev, ...r.movies]);
@@ -83,7 +75,11 @@ export default function BrowseSection({ initial, categories }) {
 
   return (
     <section className="container browse" aria-label="Browse movies">
-      <SearchBox value={query} onChange={setQuery} />
+      {query && (
+        <h1 className="browse-title">
+          Results for &ldquo;{query}&rdquo;
+        </h1>
+      )}
       <CategoryChips categories={categories} active={category} onChange={setCategory} />
       <p className="card-meta" aria-live="polite">
         {total} results

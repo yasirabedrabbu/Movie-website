@@ -1,4 +1,11 @@
 @media (max-width: 640px) {
+    .header-search {
+    flex-basis: 100%;
+    order: 3;
+  }
+  .header-search .search {
+    width: 100%;
+  }
   .header-inner {
     flex-wrap: wrap;
     padding: 8px 0;
