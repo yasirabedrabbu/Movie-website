@@ -1,8 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+// Stable references so defaults never change identity between renders.
+const NO_SUBS = [];
+const NO_CUES = [];
 
 const LANGS = {
   eng: "English", hin: "Hindi", ben: "Bengali", tam: "Tamil", tel: "Telugu",
@@ -31,6 +35,7 @@ function Svg({ d, size = 22 }) {
   );
 }
 
+// ---------- helpers ----------
 function fmt(s) {
   if (!Number.isFinite(s) || s < 0) s = 0;
   const h = Math.floor(s / 3600);
@@ -49,11 +54,85 @@ function audioLabel(a, i) {
   return [lang, a.codec?.toUpperCase(), ch].filter(Boolean).join(" · ");
 }
 
-export default function Player({ src, title }) {
+function decodeEntities(s) {
+  return s.replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// Only <i> <b> <u> survive. Everything else is escaped, so cue text can never inject HTML.
+function cleanCue(text) {
+  const stripped = text
+    .replace(/\{\\[^}]*\}/g, "")
+    .replace(/<\d{1,2}:\d{2}(?::\d{2})?\.\d{3}>/g, "")
+    .replace(/<\/?(?:font|c|v|ruby|rt|rp|lang)(?:[ .][^>]*)?>/gi, "");
+  return stripped
+    .split(/(<\/?(?:i|b|u)>)/i)
+    .map((p) => (/^<\/?(?:i|b|u)>$/i.test(p) ? p.toLowerCase() : escapeHtml(decodeEntities(p))))
+    .join("")
+    .replace(/\n/g, "<br/>");
+}
+
+function parseVtt(text) {
+  const toSec = (h, m, s, ms) =>
+    (Number(h) || 0) * 3600 +
+    Number(m) * 60 +
+    Number(s) +
+    parseInt(String(ms).padEnd(3, "0").slice(0, 3), 10) / 1000;
+  const cues = [];
+  for (const block of text.replace(/\r/g, "").split(/\n\n+/)) {
+    const lines = block.split("\n");
+    const i = lines.findIndex((l) => l.includes("-->"));
+    if (i < 0) continue;
+    const m = lines[i].match(
+      /(?:(\d+):)?(\d+):(\d+)[.,](\d+)\s*-->\s*(?:(\d+):)?(\d+):(\d+)[.,](\d+)/
+    );
+    if (!m) continue;
+    const body = lines.slice(i + 1).join("\n").trim();
+    if (!body) continue;
+    cues.push({
+      start: toSec(m[1], m[2], m[3], m[4]),
+      end: toSec(m[5], m[6], m[7], m[8]),
+      html: cleanCue(body),
+    });
+  }
+  return cues.sort((a, b) => a.start - b.start);
+}
+
+function activeHtml(cues, t) {
+  let out = "";
+  for (const c of cues) {
+    if (c.start > t) break;
+    if (t < c.end) out += (out ? "<br/>" : "") + c.html;
+  }
+  return out;
+}
+
+function subLabel(s) {
+  const lang =
+    LANGS[s.lang] || (s.lang && s.lang !== "und" ? s.lang.toUpperCase() : `Subtitle ${s.index + 1}`);
+  return s.title && s.title !== lang ? `${lang} · ${s.title}` : lang;
+}
+
+function fileName(url) {
+  const last = url.split("/").pop();
+  try {
+    return decodeURIComponent(last);
+  } catch {
+    return last;
+  }
+}
+// ---------- end helpers ----------
+
+export default function Player({ src, title, subtitles = NO_SUBS }) {
   const wrapRef = useRef(null);
   const videoRef = useRef(null);
   const hideTimer = useRef(null);
   const wantPlay = useRef(false);
+  const cueCache = useRef(new Map());
+  const lastSub = useRef(null);
 
   const [base, setBase] = useState("");
   const [status, setStatus] = useState("loading");
@@ -78,6 +157,18 @@ export default function Player({ src, title }) {
   const [preview, setPreview] = useState(null);
   const [failed, setFailed] = useState(false);
 
+  const [subId, setSubId] = useState(null);
+  const [cues, setCues] = useState(NO_CUES);
+  const [subLoading, setSubLoading] = useState(false);
+  const [subError, setSubError] = useState("");
+  const [subDelay, setSubDelay] = useState(0);
+  const [subHtml, setSubHtml] = useState("");
+
+  // Depend on the *content* of the subtitle list, not its identity,
+  // so an inline array from the parent can't retrigger effects every render.
+  const subKey = (subtitles || NO_SUBS).join("\n");
+  const externalSubs = useMemo(() => (subKey ? subKey.split("\n") : NO_SUBS), [subKey]);
+
   // 1. Ask the media server what is inside the file.
   useEffect(() => {
     if (!src) return;
@@ -98,6 +189,9 @@ export default function Player({ src, title }) {
     setNativeDur(0);
     setStarted(false);
     setPlaying(false);
+    setSubId(null);
+    setSubDelay(0);
+    lastSub.current = null;
     wantPlay.current = false;
 
     const ctrl = new AbortController();
@@ -118,7 +212,70 @@ export default function Player({ src, title }) {
     return () => ctrl.abort();
   }, [src]);
 
-  const audioTracks = info?.audio || [];
+  const audioTracks = info?.audio || NO_SUBS;
+
+  // Embedded subtitles (inside the MKV) + external .srt/.vtt files next to the movie.
+  const subTracks = useMemo(() => {
+    if (!info || !base) return NO_SUBS;
+    const embedded = (info.subs || []).map((s) => ({
+      id: `e${s.index}`,
+      label: subLabel(s),
+      url: `${base}/sub?src=${encodeURIComponent(src)}&index=${s.index}`,
+    }));
+    const external = externalSubs.map((u, i) => ({
+      id: `x${i}`,
+      label: `External ${i + 1}`,
+      hint: fileName(u),
+      url: `${base}/sub?src=${encodeURIComponent(u)}&external=1`,
+    }));
+    return [...embedded, ...external];
+  }, [info, base, src, externalSubs]);
+
+  // 2. Load the chosen subtitle track.
+  useEffect(() => {
+    // Functional updates return the same value when nothing changes,
+    // so React bails out instead of re-rendering.
+    const resetCues = () => setCues((c) => (c.length ? NO_CUES : c));
+    const clearError = () => setSubError((e) => (e ? "" : e));
+
+    if (!subId) {
+      resetCues();
+      clearError();
+      setSubLoading(false);
+      return;
+    }
+    const track = subTracks.find((t) => t.id === subId);
+    if (!track) return;
+
+    const cached = cueCache.current.get(track.url);
+    if (cached) {
+      setCues(cached);
+      clearError();
+      setSubLoading(false);
+      return;
+    }
+
+    const ctrl = new AbortController();
+    setSubLoading(true);
+    clearError();
+    resetCues();
+    fetch(track.url, { signal: ctrl.signal })
+      .then((r) => (r.ok ? r.text() : Promise.reject(new Error("Could not load this subtitle"))))
+      .then((text) => {
+        const parsed = parseVtt(text);
+        if (!parsed.length) throw new Error("This subtitle track is empty");
+        cueCache.current.set(track.url, parsed);
+        setCues(parsed);
+        setSubLoading(false);
+      })
+      .catch((err) => {
+        if (err.name === "AbortError") return;
+        setSubError(err.message || "Could not load this subtitle");
+        setSubLoading(false);
+      });
+    return () => ctrl.abort();
+  }, [subId, subTracks]);
+
   const dur = direct || !info ? nativeDur : info.duration || nativeDur;
   const abs = direct ? time : offset + time;
   const shown = preview ?? abs;
@@ -131,6 +288,29 @@ export default function Player({ src, title }) {
       : direct
         ? src
         : `${base}/stream?src=${encodeURIComponent(src)}&audio=${audio}&start=${offset}${transcode ? "&mode=transcode" : ""}`;
+
+  // 3. Show the cue that matches the current time.
+  const computeSub = useCallback(() => {
+    const v = videoRef.current;
+    if (!v || !cues.length) {
+      setSubHtml("");
+      return;
+    }
+    setSubHtml(activeHtml(cues, (direct ? 0 : offset) + v.currentTime - subDelay));
+  }, [cues, direct, offset, subDelay]);
+
+  useEffect(() => {
+    computeSub();
+  }, [computeSub, time]);
+
+  useEffect(() => {
+    if (!playing || !cues.length) return;
+    let id = requestAnimationFrame(function loop() {
+      computeSub();
+      id = requestAnimationFrame(loop);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [playing, cues, computeSub]);
 
   useEffect(() => {
     const v = videoRef.current;
@@ -151,6 +331,23 @@ export default function Player({ src, title }) {
     document.addEventListener("fullscreenchange", on);
     return () => document.removeEventListener("fullscreenchange", on);
   }, []);
+
+  // Close any open menu on outside click or Escape.
+  useEffect(() => {
+    if (!menu) return;
+    const onDown = (e) => {
+      if (!e.target.closest?.(".pl-menuwrap")) setMenu(null);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") setMenu(null);
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menu]);
 
   useEffect(() => () => clearTimeout(hideTimer.current), []);
 
@@ -221,6 +418,12 @@ export default function Player({ src, title }) {
     setMenu(null);
   };
 
+  const pickSub = (id) => {
+    setSubId(id);
+    if (id) lastSub.current = id;
+    setMenu(null);
+  };
+
   const syncBuffered = () => {
     const v = videoRef.current;
     if (!v) return;
@@ -266,7 +469,11 @@ export default function Player({ src, title }) {
   };
 
   const onKeyDown = (e) => {
-    if (e.target.tagName === "BUTTON" && (e.key === " " || e.key === "Enter")) return;
+    const tag = e.target.tagName;
+    // Let buttons handle Space/Enter, and sliders handle their own arrow keys.
+    if (tag === "BUTTON" && (e.key === " " || e.key === "Enter")) return;
+    if (tag === "INPUT" && e.key.startsWith("Arrow")) return;
+
     const k = e.key.toLowerCase();
     if (k === " " || k === "k") toggle();
     else if (k === "arrowleft" || k === "j") seekTo(abs - 10);
@@ -275,6 +482,7 @@ export default function Player({ src, title }) {
     else if (k === "arrowdown") setVolume((x) => Math.max(0, +(x - 0.1).toFixed(2)));
     else if (k === "m") setMuted((x) => !x);
     else if (k === "f") toggleFs();
+    else if (k === "c" && subTracks.length) setSubId((cur) => (cur ? null : lastSub.current || subTracks[0].id));
     else return;
     e.preventDefault();
     poke();
@@ -296,6 +504,7 @@ export default function Player({ src, title }) {
   }
 
   const uiOn = showUi || !playing || menu;
+  const toggleMenu = (name) => setMenu((m) => (m === name ? null : name));
 
   return (
     <div
@@ -346,6 +555,18 @@ export default function Player({ src, title }) {
         onEnded={() => setPlaying(false)}
         onError={onError}
       />
+
+      {subHtml && (
+        <div className="pl-sub" aria-live="off">
+          <span dangerouslySetInnerHTML={{ __html: subHtml }} />
+        </div>
+      )}
+
+      {(subLoading || subError) && (
+        <div className="pl-chip" role="status">
+          {subLoading ? "Loading subtitles… (first time can take a minute)" : subError}
+        </div>
+      )}
 
       {(waiting || status === "loading") && <div className="pl-spinner" aria-label="Loading" />}
 
@@ -404,12 +625,71 @@ export default function Player({ src, title }) {
           </div>
 
           <div className="pl-group">
+            {subTracks.length > 0 && (
+              <div className="pl-menuwrap">
+                <button
+                  type="button"
+                  className={`pl-btn pl-text${subId ? " is-on" : ""}`}
+                  onClick={() => toggleMenu("subs")}
+                  aria-haspopup="menu"
+                  aria-expanded={menu === "subs"}
+                  aria-label="Subtitles"
+                >
+                  CC
+                </button>
+                {menu === "subs" && (
+                  <ul className="pl-menu" role="menu">
+                    <li>
+                      <button
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={!subId}
+                        className={!subId ? "is-on" : ""}
+                        onClick={() => pickSub(null)}
+                      >
+                        Off
+                      </button>
+                    </li>
+                    {subTracks.map((t) => (
+                      <li key={t.id}>
+                        <button
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={subId === t.id}
+                          className={subId === t.id ? "is-on" : ""}
+                          title={t.hint || t.label}
+                          onClick={() => pickSub(t.id)}
+                        >
+                          {t.label}
+                          {t.hint && <small className="pl-hint">{t.hint}</small>}
+                        </button>
+                      </li>
+                    ))}
+                    {subId && (
+                      <li className="pl-menu-sync">
+                        <span>
+                          Sync {subDelay > 0 ? "+" : ""}
+                          {subDelay.toFixed(1)}s
+                        </span>
+                        <button type="button" onClick={() => setSubDelay((d) => +(d - 0.5).toFixed(1))} aria-label="Subtitles earlier">
+                          -
+                        </button>
+                        <button type="button" onClick={() => setSubDelay((d) => +(d + 0.5).toFixed(1))} aria-label="Subtitles later">
+                          +
+                        </button>
+                      </li>
+                    )}
+                  </ul>
+                )}
+              </div>
+            )}
+
             {audioTracks.length > 1 && (
               <div className="pl-menuwrap">
                 <button
                   type="button"
                   className="pl-btn pl-text"
-                  onClick={() => setMenu(menu === "audio" ? null : "audio")}
+                  onClick={() => toggleMenu("audio")}
                   aria-haspopup="menu"
                   aria-expanded={menu === "audio"}
                 >
@@ -439,7 +719,7 @@ export default function Player({ src, title }) {
               <button
                 type="button"
                 className="pl-btn pl-text"
-                onClick={() => setMenu(menu === "speed" ? null : "speed")}
+                onClick={() => toggleMenu("speed")}
                 aria-haspopup="menu"
                 aria-expanded={menu === "speed"}
               >

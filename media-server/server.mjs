@@ -1,5 +1,7 @@
 import http from "node:http";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,21 +12,28 @@ const PORT = Number(process.env.MEDIA_SERVER_PORT) || 4000;
 const BASE = (process.env.MEDIA_BASE_URL || "").replace(/\/+$/, "");
 const FFMPEG = process.env.FFMPEG_PATH || "ffmpeg";
 const FFPROBE = process.env.FFPROBE_PATH || "ffprobe";
+const CACHE_DIR = resolve(__dirname, ".subcache");
+
+const TEXT_SUBS = ["subrip", "srt", "ass", "ssa", "mov_text", "webvtt", "text"];
 
 if (!BASE) {
   console.error("MEDIA_BASE_URL is missing in web/.env");
   process.exit(1);
 }
 
+// Collect raw bytes first, decode once: keeps Hindi/Bangla text intact.
 function run(cmd, args) {
   return new Promise((ok, fail) => {
     const p = spawn(cmd, args);
-    let out = "";
-    let err = "";
-    p.stdout.on("data", (d) => (out += d));
-    p.stderr.on("data", (d) => (err += d));
+    const out = [];
+    const err = [];
+    p.stdout.on("data", (d) => out.push(d));
+    p.stderr.on("data", (d) => err.push(d));
     p.on("error", fail);
-    p.on("close", (code) => (code === 0 ? ok(out) : fail(new Error(err.slice(-300) || `exit ${code}`))));
+    p.on("close", (code) => {
+      if (code === 0) ok(Buffer.concat(out).toString("utf8"));
+      else fail(new Error(Buffer.concat(err).toString("utf8").slice(-300) || `exit ${code}`));
+    });
   });
 }
 
@@ -47,6 +56,17 @@ async function probe(src) {
       lang: s.tags?.language || null,
       title: s.tags?.title || null,
     }));
+  // index = position among ALL subtitle streams (what ffmpeg's 0:s:N means)
+  const subs = streams
+    .filter((s) => s.codec_type === "subtitle")
+    .map((s, i) => ({
+      index: i,
+      codec: s.codec_name,
+      lang: s.tags?.language || null,
+      title: s.tags?.title || null,
+      text: TEXT_SUBS.includes(s.codec_name),
+    }))
+    .filter((s) => s.text);
   const ext = src.split("?")[0].split(".").pop().toLowerCase();
   const video = v
     ? { codec: v.codec_name, pixFmt: v.pix_fmt || "", width: v.width, height: v.height }
@@ -56,6 +76,7 @@ async function probe(src) {
     duration: Number(j.format?.duration) || 0,
     video,
     audio,
+    subs,
     copyable,
     directPlay:
       ["mp4", "m4v"].includes(ext) &&
@@ -65,6 +86,32 @@ async function probe(src) {
   };
   probeCache.set(src, info);
   return info;
+}
+
+// Subtitles -> WebVTT. Cached on disk so a big MKV is only read once.
+const subJobs = new Map();
+
+async function getSubtitle(src, index, external) {
+  const key = createHash("sha1").update(`${src}|${external ? "x" : index}`).digest("hex");
+  const file = resolve(CACHE_DIR, `${key}.vtt`);
+  try {
+    return await readFile(file, "utf8");
+  } catch {}
+  if (subJobs.has(key)) return subJobs.get(key);
+
+  const job = (async () => {
+    const args = ["-hide_banner", "-loglevel", "error", "-i", src];
+    if (!external) args.push("-map", `0:s:${index}`);
+    args.push("-f", "webvtt", "pipe:1");
+    const vtt = await run(FFMPEG, args);
+    if (!vtt.includes("-->")) throw new Error("This subtitle track is empty");
+    await mkdir(CACHE_DIR, { recursive: true });
+    await writeFile(file, vtt);
+    return vtt;
+  })().finally(() => subJobs.delete(key));
+
+  subJobs.set(key, job);
+  return job;
 }
 
 function sendJson(res, status, body) {
@@ -98,8 +145,9 @@ async function stream(req, res, url, src) {
   );
 
   const p = spawn(FFMPEG, args);
-  let err = "";
-  p.stderr.on("data", (d) => (err += d));
+  const errChunks = [];
+  p.stderr.on("data", (d) => errChunks.push(d));
+  const errText = () => Buffer.concat(errChunks).toString("utf8").slice(-300);
 
   p.on("error", (e) => {
     if (!res.headersSent) sendJson(res, 500, { error: `ffmpeg failed to start: ${e.message}` });
@@ -117,7 +165,7 @@ async function stream(req, res, url, src) {
   });
 
   p.on("close", (code) => {
-    if (!res.headersSent) sendJson(res, 502, { error: err.slice(-300) || `ffmpeg exit ${code}` });
+    if (!res.headersSent) sendJson(res, 502, { error: errText() || `ffmpeg exit ${code}` });
     else res.end();
   });
 
@@ -142,6 +190,17 @@ const server = http.createServer(async (req, res) => {
   try {
     if (url.pathname === "/info") return sendJson(res, 200, await probe(src));
     if (url.pathname === "/stream") return await stream(req, res, url, src);
+    if (url.pathname === "/sub") {
+      const external = url.searchParams.get("external") === "1";
+      const index = Math.max(0, Number(url.searchParams.get("index")) || 0);
+      console.log(`[sub] ${external ? "external" : `embedded #${index}`}  ${decodeURIComponent(src.split("/").pop())}`);
+      const vtt = await getSubtitle(src, index, external);
+      res.writeHead(200, {
+        "Content-Type": "text/vtt; charset=utf-8",
+        "Cache-Control": "public, max-age=3600",
+      });
+      return res.end(vtt);
+    }
     sendJson(res, 404, { error: "Not found" });
   } catch (e) {
     console.warn(`[error] ${e.message}`);

@@ -153,6 +153,8 @@ async function MovieContent({ params }) {
   const playable = allFiles.find((f) => NATIVE.includes(f.ext));
   const playSrc = playable?.url ?? allFiles[0]?.url ?? movie.video;
   const vlcSrc = allFiles[0]?.url ?? movie.video;
+  const playVersion = versions.find((v) => v.files.some((f) => f.url === playSrc));
+  const subtitles = playVersion?.subtitles ?? movie.subtitles ?? [];
 
   const title = d?.title || movie.title;
   const poster = d?.poster || movie.poster;
@@ -357,7 +359,7 @@ async function MovieContent({ params }) {
 
       <div className="container mv-body">
         <section className="mv-section" id="player" aria-label="Player">
-          <Player src={playSrc} title={title} />
+                 <Player src={playSrc} title={title} subtitles={subtitles} />
         </section>
 
         <Tabs tabs={tabs} />
