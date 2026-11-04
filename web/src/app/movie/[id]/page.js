@@ -6,14 +6,14 @@ import Footer from "@/components/Footer";
 import Icon from "@/components/Icon";
 import MovieGrid from "@/components/MovieGrid";
 import ShareButton from "@/components/ShareButton";
+import BackButton from "@/components/BackButton";
 import VersionPlayer from "./VersionPlayer";
 import Tabs from "./Tabs";
-import { findMovie, listMovies } from "@/lib/movies";
+import { findMovie, listMovies, proxyImg } from "@/lib/movies";
 import { findTmdbId, getMovieDetails } from "@/lib/tmdb";
 import { getImdbRating } from "@/lib/omdb";
 import { formatSize, formatYear } from "@/lib/format";
 import {
-  ArrowLeft01Icon,
   Download01Icon,
   PlayCircleIcon,
   PlayIcon,
@@ -23,7 +23,11 @@ import {
 const compact = new Intl.NumberFormat("en", { notation: "compact" });
 
 const safe = (s) => {
-  try { return decodeURIComponent(s); } catch { return s; }
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
 };
 const slug = (s) => String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 const extOf = (u) => (u || "").split("?")[0].split(".").pop().toLowerCase();
@@ -105,6 +109,7 @@ export async function generateMetadata({ params }) {
       : d.overview
     : fallback;
 
+  // Metadata images must be absolute URLs, so the TMDB/LAN originals are used here.
   const image = d?.backdrop || d?.poster || movie.poster || null;
   const images = image ? [{ url: image, alt: `${name} poster` }] : undefined;
 
@@ -132,7 +137,7 @@ export default function MoviePage({ params }) {
   return (
     <>
       <Header />
-      <main>
+      <main id="main" tabIndex={-1}>
         <Suspense fallback={<MovieSkeleton />}>
           <MovieContent params={params} />
         </Suspense>
@@ -156,7 +161,8 @@ async function MovieContent({ params }) {
   const vlcSrc = versions.flatMap((v) => v.files)[0]?.url ?? movie.video;
 
   const title = d?.title || movie.title;
-  const poster = d?.poster || movie.poster;
+  // TMDB posters are already HTTPS. The LAN poster goes through the image proxy.
+  const poster = d?.poster || proxyImg(movie.poster);
   const backdrop = d?.backdrop || null;
 
   const meta = [
@@ -281,10 +287,7 @@ async function MovieContent({ params }) {
       <section className="mv-hero" aria-labelledby="mv-title">
         {backdrop && <img className="mv-backdrop" src={backdrop} alt="" fetchPriority="high" />}
         <div className="container mv-hero-inner">
-          <Link href="/" className="btn btn-ghost mv-back">
-            <Icon icon={ArrowLeft01Icon} size={20} />
-            Back
-          </Link>
+          <BackButton />
 
           <div className="mv-head">
             {poster && (
